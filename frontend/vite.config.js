@@ -39,6 +39,11 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        // 確保 SPA 路由正確處理（重要：防止路由被當作 404）
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
+        // 清除過期緩存
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -55,6 +60,11 @@ export default defineConfig({
             }
           }
         ]
+      },
+      // 開發模式設定
+      devOptions: {
+        enabled: true,
+        type: 'module'
       }
     })
   ],

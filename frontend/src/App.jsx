@@ -14,12 +14,12 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="tanks" element={<TankManagement />} />
-          <Route path="tank/:tankId" element={<TankDetail />} />
-          <Route path="schedule" element={<Schedule />} />
-          <Route path="control" element={<ManualControl />} />
-          <Route path="alerts" element={<Alerts />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/tanks" element={<TankManagement />} />
+          <Route path="/tank/:tankId" element={<TankDetail />} />
+          <Route path="/schedule" element={<Schedule />} />
+          <Route path="/control" element={<ManualControl />} />
+          <Route path="/alerts" element={<Alerts />} />
         </Route>
       </Routes>
     </Router>
