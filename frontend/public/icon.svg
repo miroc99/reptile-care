@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- 背景圓形 -->
+  <circle cx="100" cy="100" r="90" fill="url(#gradient)" />
+  
+  <!-- 爬蟲圖案 (簡化的蜥蜴) -->
+  <g fill="#ffffff">
+    <!-- 身體 -->
+    <ellipse cx="100" cy="100" rx="45" ry="25" />
+    <!-- 頭部 -->
+    <ellipse cx="70" cy="95" rx="20" ry="18" />
+    <!-- 尾巴 -->
+    <path d="M 145 100 Q 165 90, 175 85 Q 165 95, 175 105 Q 165 100, 145 105 Z" />
+    <!-- 眼睛 -->
+    <circle cx="65" cy="92" r="3" fill="#1f2937" />
+    <!-- 腿部 (簡化) -->
+    <rect x="85" y="115" width="8" height="15" rx="4" />
+    <rect x="107" y="115" width="8" height="15" rx="4" />
+    <rect x="85" y="80" width="8" height="15" rx="4" />
+    <rect x="107" y="80" width="8" height="15" rx="4" />
+  </g>
+  
+  <!-- 溫度計圖標 -->
+  <g transform="translate(145, 50)">
+    <rect x="0" y="0" width="8" height="30" rx="4" fill="#ffffff" opacity="0.8" />
+    <circle cx="4" cy="33" r="6" fill="#ffffff" opacity="0.8" />
+    <rect x="2" y="5" width="4" height="20" fill="#ef4444" />
+    <circle cx="4" cy="33" r="4" fill="#ef4444" />
+  </g>
+</svg>

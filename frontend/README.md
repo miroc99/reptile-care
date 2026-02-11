@@ -50,6 +50,7 @@
 
 - **框架**: React 18
 - **建置工具**: Vite 5
+- **PWA**: Vite Plugin PWA（支援離線使用和安裝到桌面）
 - **樣式**: Tailwind CSS 3
 - **路由**: React Router v6
 - **圖表**: Recharts 2
@@ -89,6 +90,37 @@ npm run build
 \`\`\`bash
 npm run preview
 \`\`\`
+
+## PWA 功能
+
+此應用程式已配置為 PWA（Progressive Web App），提供以下功能：
+
+### 📱 在 iPhone/iPad 上安裝
+
+1. 使用 Safari 瀏覽器開啟應用程式
+2. 點擊底部的「分享」按鈕（<img src="https://developer.apple.com/design/human-interface-guidelines/images/share-icon.svg" width="16" style="display:inline"/>）
+3. 向下滾動並選擇「加入主畫面」
+4. 自訂名稱（預設：爬蟲環控）
+5. 點擊「加入」
+
+### ✨ PWA 特性
+
+- ✅ **離線支援**：快取靜態資源，離線時仍可查看介面
+- ✅ **全螢幕體驗**：隱藏瀏覽器 UI，提供原生應用程式般的體驗
+- ✅ **安裝到主畫面**：在 iPhone、Android、桌面瀏覽器上安裝
+- ✅ **自動更新**：新版本發布時自動更新快取
+- ✅ **深色主題列**：iOS 狀態列支援
+
+### 🎨 圖標生成
+
+如需自訂圖標：
+
+1. 在瀏覽器中開啟 `generate-icons.html`
+2. 自動下載三個圖標文件
+3. 將圖標移動到 `public/` 資料夾
+4. 重新建置應用程式
+
+或參考 `public/ICONS_README.md` 使用專業工具生成。
 
 ## API 整合
 

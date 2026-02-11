@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>生成 PWA 圖標</title>
+</head>
+<body>
+    <h1>PWA 圖標生成器</h1>
+    <p>在瀏覽器中打開此文件，自動生成並下載所需的圖標文件</p>
+    <div id="status"></div>
+    
+    <script>
+        const status = document.getElementById('status');
+        
+        function createIcon(size, filename) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // 漸變背景
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#10b981');
+            gradient.addColorStop(1, '#3b82f6');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // 白色文字
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${size * 0.3}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🦎', size / 2, size / 2);
+            
+            // 下載
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                status.innerHTML += `<p>✅ 已生成 ${filename}</p>`;
+            });
+        }
+        
+        status.innerHTML = '<p>開始生成圖標...</p>';
+        
+        setTimeout(() => createIcon(192, 'pwa-192x192.png'), 100);
+        setTimeout(() => createIcon(512, 'pwa-512x512.png'), 300);
+        setTimeout(() => createIcon(180, 'apple-touch-icon.png'), 500);
+        
+        setTimeout(() => {
+            status.innerHTML += '<p><strong>完成！</strong>請將下載的圖標文件移動到 <code>public</code> 資料夾</p>';
+        }, 1000);
+    </script>
+</body>
+</html>
