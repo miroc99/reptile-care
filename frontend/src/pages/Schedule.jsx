@@ -2,10 +2,19 @@ import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Clock, Calendar as CalendarIcon, Save, X } from 'lucide-react';
 
 const Schedule = () => {
+  // 模拟缸数据
+  const [tanks] = useState([
+    { id: 1, name: '綠鬣蜥主缸' },
+    { id: 2, name: '球蟒繁殖缸' },
+    { id: 3, name: '豹紋守宮幼體缸' }
+  ]);
+
   const [schedules, setSchedules] = useState([
     {
       id: 1,
       name: '白天照明',
+      tankId: 1,
+      tankName: '綠鬣蜥主缸',
       device: 'lighting',
       startTime: '08:00',
       endTime: '20:00',
@@ -15,9 +24,22 @@ const Schedule = () => {
     {
       id: 2,
       name: '夜間加熱',
+      tankId: 1,
+      tankName: '綠鬣蜥主缸',
       device: 'heating',
       startTime: '22:00',
       endTime: '06:00',
+      days: [1, 2, 3, 4, 5, 6, 0],
+      enabled: true
+    },
+    {
+      id: 3,
+      name: '球蟒加熱',
+      tankId: 2,
+      tankName: '球蟒繁殖缸',
+      device: 'heating',
+      startTime: '00:00',
+      endTime: '23:59',
       days: [1, 2, 3, 4, 5, 6, 0],
       enabled: true
     }
@@ -38,6 +60,8 @@ const Schedule = () => {
     setEditingSchedule({
       id: Date.now(),
       name: '',
+      tankId: tanks[0]?.id || 1,
+      tankName: tanks[0]?.name || '',
       device: 'lighting',
       startTime: '08:00',
       endTime: '20:00',
@@ -101,6 +125,31 @@ const Schedule = () => {
             {schedules.find(s => s.id === editingSchedule.id) ? '編輯排程' : '新增排程'}
           </h2>
           <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                飼養缸 *
+              </label>
+              <select
+                value={editingSchedule.tankId}
+                onChange={(e) => {
+                  const tankId = Number(e.target.value);
+                  const tank = tanks.find(t => t.id === tankId);
+                  setEditingSchedule({ 
+                    ...editingSchedule, 
+                    tankId: tankId,
+                    tankName: tank?.name || ''
+                  });
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                {tanks.map(tank => (
+                  <option key={tank.id} value={tank.id}>
+                    {tank.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 排程名稱
@@ -211,6 +260,9 @@ const Schedule = () => {
                   排程名稱
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  飼養缸
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   設備
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -232,6 +284,9 @@ const Schedule = () => {
                 <tr key={schedule.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{schedule.name}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-600">{schedule.tankName}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">

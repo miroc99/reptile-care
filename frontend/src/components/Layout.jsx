@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { 
-  LayoutDashboard, 
+  LayoutDashboard,
+  Box,
   Calendar, 
   ToggleRight, 
   Bell, 
@@ -15,6 +16,7 @@ const Layout = () => {
 
   const navigation = [
     { name: '儀表板', href: '/dashboard', icon: LayoutDashboard },
+    { name: '飼養缸管理', href: '/tanks', icon: Box },
     { name: '排程管理', href: '/schedule', icon: Calendar },
     { name: '手動控制', href: '/control', icon: ToggleRight },
     { name: '告警設定', href: '/alerts', icon: Bell },

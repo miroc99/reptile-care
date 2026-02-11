@@ -1,36 +1,48 @@
 import React, { useState } from 'react';
-import { Power, Lightbulb, Zap, Wind, AlertCircle } from 'lucide-react';
+import { Power, Lightbulb, Zap, Wind, AlertCircle, ChevronDown } from 'lucide-react';
 
 const ManualControl = () => {
-  const [devices, setDevices] = useState({
-    lighting: { 
-      id: 'lighting',
-      name: '照明系統', 
-      status: 'on',
-      icon: Lightbulb,
-      color: 'yellow',
-      description: '主要照明控制'
+  // 模拟多个缸
+  const [tanks] = useState([
+    {
+      id: 1,
+      name: '綠鬣蜥主缸',
+      devices: {
+        lighting: { id: 'lighting', name: '照明系統', status: 'on', icon: Lightbulb, color: 'yellow' },
+        heating: { id: 'heating', name: '加熱墊', status: 'on', icon: Zap, color: 'orange' },
+        uvb: { id: 'uvb', name: 'UVB燈', status: 'on', icon: Lightbulb, color: 'purple' },
+        cooling: { id: 'cooling', name: '散熱風扇', status: 'off', icon: Wind, color: 'blue' }
+      }
     },
-    heating: { 
-      id: 'heating',
-      name: '加熱系統', 
-      status: 'on',
-      icon: Zap,
-      color: 'orange',
-      description: '溫度加熱控制'
+    {
+      id: 2,
+      name: '球蟒繁殖缸',
+      devices: {
+        lighting: { id: 'lighting', name: '照明系統', status: 'on', icon: Lightbulb, color: 'yellow' },
+        heating: { id: 'heating', name: '陶瓷加熱器', status: 'on', icon: Zap, color: 'orange' },
+        cooling: { id: 'cooling', name: '散熱風扇', status: 'off', icon: Wind, color: 'blue' }
+      }
     },
-    cooling: { 
-      id: 'cooling',
-      name: '散熱系統', 
-      status: 'off',
-      icon: Wind,
-      color: 'blue',
-      description: '冷卻散熱控制'
+    {
+      id: 3,
+      name: '豹紋守宮幼體缸',
+      devices: {
+        lighting: { id: 'lighting', name: '照明系統', status: 'off', icon: Lightbulb, color: 'yellow' },
+        heating: { id: 'heating', name: '加熱墊', status: 'on', icon: Zap, color: 'orange' }
+      }
     }
-  });
+  ]);
 
+  const [selectedTankId, setSelectedTankId] = useState(1);
+  const [devices, setDevices] = useState(tanks[0].devices);
   const [overrideMode, setOverrideMode] = useState(false);
   const [targetTemp, setTargetTemp] = useState(28);
+
+  const handleTankChange = (tankId) => {
+    setSelectedTankId(tankId);
+    const tank = tanks.find(t => t.id === tankId);
+    setDevices(tank.devices);
+  };
 
   const handleToggle = (deviceId) => {
     setDevices(prev => ({
@@ -73,6 +85,11 @@ const ManualControl = () => {
       bg: 'bg-blue-100',
       text: 'text-blue-600',
       button: 'bg-blue-600 hover:bg-blue-700'
+    },
+    purple: {
+      bg: 'bg-purple-100',
+      text: 'text-purple-600',
+      button: 'bg-purple-600 hover:bg-purple-700'
     }
   };
 
@@ -93,6 +110,25 @@ const ManualControl = () => {
           >
             全部關閉
           </button>
+        </div>
+      </div>
+
+      {/* 缸选择器 */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">選擇飼養缸</h2>
+        <div className="relative">
+          <select
+            value={selectedTankId}
+            onChange={(e) => handleTankChange(Number(e.target.value))}
+            className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white text-lg font-medium"
+          >
+            {tanks.map(tank => (
+              <option key={tank.id} value={tank.id}>
+                {tank.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
         </div>
       </div>
 
@@ -173,7 +209,6 @@ const ManualControl = () => {
                   <div className={`w-4 h-4 rounded-full ${isOn ? 'bg-green-500' : 'bg-gray-300'} animate-pulse`} />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900">{device.name}</h3>
-                <p className="text-sm text-gray-600 mt-1">{device.description}</p>
               </div>
               
               <div className="p-6 bg-white">

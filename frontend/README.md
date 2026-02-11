@@ -4,19 +4,36 @@
 
 ## 功能特色
 
+### 🏠 飼養缸管理
+- 多缸支持，每個缸獨立管理
+- 自訂缸名稱和飼養物種
+- 上傳缸照片作為識別
+- 設定目標溫度範圍
+- 配置每個缸的設備類型
+
 ### 📊 儀表板
+- 所有飼養缸總覽
 - 即時溫度監控與顯示
-- 溫度趨勢圖表（24小時）
-- 設備運行狀態一覽
-- 最高/最低溫度統計
+- 溫度異常警報統計
+- 運行設備數量統計
+- 點擊缸卡片進入詳細頁面
+
+### 🔍 缸詳情頁面
+- 單個缸的完整監控資訊
+- 溫度與濕度趨勢圖表
+- 設備即時狀態與控制
+- 能耗統計與歷史
+- 最近事件記錄
 
 ### 📅 排程管理
+- 關聯到特定飼養缸
 - 視覺化排程編輯器
 - 支援每日/每週重複設定
 - 設備開關時間設定
 - 排程啟用/停用切換
 
 ### 🎮 手動控制
+- 下拉選單選擇飼養缸
 - 即時設備開關控制
 - 覆寫模式（優先於自動排程）
 - 目標溫度設定
@@ -86,20 +103,22 @@ npm run preview
 \`\`\`
 frontend/
 ├── src/
-│   ├── components/        # 共用元件
-│   │   └── Layout.jsx    # 主要布局元件
-│   ├── pages/            # 頁面元件
-│   │   ├── Dashboard.jsx       # 儀表板
-│   │   ├── Schedule.jsx        # 排程管理
-│   │   ├── ManualControl.jsx   # 手動控制
+│   ├── components/              # 共用元件
+│   │   └── Layout.jsx          # 主要布局元件
+│   ├── pages/                  # 頁面元件
+│   │   ├── Dashboard.jsx       # 儀表板總覽（多缸）
+│   │   ├── TankManagement.jsx  # 飼養缸管理
+│   │   ├── TankDetail.jsx      # 單缸詳細頁面
+│   │   ├── Schedule.jsx        # 排程管理（支援多缸）
+│   │   ├── ManualControl.jsx   # 手動控制（支援缸選擇）
 │   │   └── Alerts.jsx          # 告警設定
-│   ├── App.jsx           # 主應用程式
-│   ├── main.jsx          # 進入點
-│   └── index.css         # 全域樣式
-├── index.html            # HTML 模板
-├── package.json          # 專案配置
-├── vite.config.js        # Vite 配置
-└── tailwind.config.js    # Tailwind 配置
+│   ├── App.jsx                 # 主應用程式（路由配置）
+│   ├── main.jsx                # 進入點
+│   └── index.css               # 全域樣式
+├── index.html                  # HTML 模板
+├── package.json                # 專案配置
+├── vite.config.js              # Vite 配置
+└── tailwind.config.js          # Tailwind 配置
 \`\`\`
 
 ## 開發說明
