@@ -1,0 +1,130 @@
+# 爬蟲飼養環控系統 - 前端
+
+基於 React + Vite 建構的爬蟲飼養環控系統前端介面。
+
+## 功能特色
+
+### 📊 儀表板
+- 即時溫度監控與顯示
+- 溫度趨勢圖表（24小時）
+- 設備運行狀態一覽
+- 最高/最低溫度統計
+
+### 📅 排程管理
+- 視覺化排程編輯器
+- 支援每日/每週重複設定
+- 設備開關時間設定
+- 排程啟用/停用切換
+
+### 🎮 手動控制
+- 即時設備開關控制
+- 覆寫模式（優先於自動排程）
+- 目標溫度設定
+- 操作歷史記錄
+
+### 🔔 告警設定
+- 溫度閾值設定（高溫/低溫警報）
+- Email 通知整合
+- Line Notify 整合
+- Telegram Bot 整合
+- 告警歷史查看
+
+## 技術棧
+
+- **框架**: React 18
+- **建置工具**: Vite 5
+- **樣式**: Tailwind CSS 3
+- **路由**: React Router v6
+- **圖表**: Recharts 2
+- **圖示**: Lucide React
+
+## 安裝與執行
+
+### 前置需求
+- Node.js 18+ 
+- npm 或 yarn
+
+### 安裝依賴
+
+\`\`\`bash
+cd frontend
+npm install
+\`\`\`
+
+### 開發模式
+
+\`\`\`bash
+npm run dev
+\`\`\`
+
+應用程式將在 http://localhost:3000 啟動
+
+### 建置生產版本
+
+\`\`\`bash
+npm run build
+\`\`\`
+
+建置檔案將輸出到 `dist/` 目錄
+
+### 預覽生產版本
+
+\`\`\`bash
+npm run preview
+\`\`\`
+
+## API 整合
+
+前端透過 Vite proxy 與後端 API 通訊：
+- API 基礎路徑: `/api`
+- 後端位址: `http://localhost:8000`
+
+在 `vite.config.js` 中可以修改 proxy 設定。
+
+## 專案結構
+
+\`\`\`
+frontend/
+├── src/
+│   ├── components/        # 共用元件
+│   │   └── Layout.jsx    # 主要布局元件
+│   ├── pages/            # 頁面元件
+│   │   ├── Dashboard.jsx       # 儀表板
+│   │   ├── Schedule.jsx        # 排程管理
+│   │   ├── ManualControl.jsx   # 手動控制
+│   │   └── Alerts.jsx          # 告警設定
+│   ├── App.jsx           # 主應用程式
+│   ├── main.jsx          # 進入點
+│   └── index.css         # 全域樣式
+├── index.html            # HTML 模板
+├── package.json          # 專案配置
+├── vite.config.js        # Vite 配置
+└── tailwind.config.js    # Tailwind 配置
+\`\`\`
+
+## 開發說明
+
+### 添加新頁面
+1. 在 `src/pages/` 建立新的元件檔案
+2. 在 `src/App.jsx` 中添加路由
+3. 在 `src/components/Layout.jsx` 的導航選單中添加連結
+
+### 自訂樣式
+使用 Tailwind CSS 工具類別，或在 `index.css` 中添加自訂樣式。
+
+### API 呼叫
+建議建立 `src/services/api.js` 來集中管理 API 呼叫邏輯。
+
+## 後續開發建議
+
+1. **API 整合**: 將模擬數據替換為真實 API 呼叫
+2. **狀態管理**: 考慮使用 Zustand 或 Redux 管理全域狀態
+3. **認證**: 實作使用者登入與 JWT 驗證
+4. **即時更新**: 整合 WebSocket 或 Server-Sent Events
+5. **響應式優化**: 針對平板和手機進行更多測試與優化
+6. **國際化**: 添加多語言支援（i18n）
+7. **測試**: 添加單元測試和整合測試
+
+## License
+
+MIT
