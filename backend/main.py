@@ -1,9 +1,11 @@
 """FastAPI 主應用程式"""
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse, FileResponse
 from config import settings
 from database import create_db_and_tables, engine, get_session
 from models import RelayChannel, Tank
@@ -153,17 +155,76 @@ app.include_router(tanks.router)
 app.include_router(dev_tools.router)
 app.include_router(schedules.router)
 
+# 前端靜態文件路徑
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+
+# 如果存在構建的前端文件，提供靜態文件服務
+if FRONTEND_DIST.exists():
+    logger.info(f"提供前端靜態文件: {FRONTEND_DIST}")
+    
+    # 提供靜態資源 (CSS, JS, 圖片等)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+    
+    # PWA 資源
+    @app.get("/manifest.webmanifest")
+    async def manifest():
+        manifest_file = FRONTEND_DIST / "manifest.webmanifest"
+        if manifest_file.exists():
+            return FileResponse(manifest_file, media_type="application/manifest+json")
+        return JSONResponse({"error": "Manifest not found"}, status_code=404)
+    
+    @app.get("/sw.js")
+    async def service_worker():
+        sw_file = FRONTEND_DIST / "sw.js"
+        if sw_file.exists():
+            return FileResponse(sw_file, media_type="application/javascript")
+        return JSONResponse({"error": "Service worker not found"}, status_code=404)
+    
+    @app.get("/workbox-{path:path}")
+    async def workbox(path: str):
+        workbox_file = FRONTEND_DIST / f"workbox-{path}"
+        if workbox_file.exists():
+            return FileResponse(workbox_file, media_type="application/javascript")
+        return JSONResponse({"error": "Workbox file not found"}, status_code=404)
+else:
+    logger.warning(f"前端構建文件不存在: {FRONTEND_DIST}")
+    logger.warning("請執行 'npm run build' 構建前端")
+
 
 @app.get("/")
-def root():
-    """根路徑"""
+async def root():
+    """根路徑 - 如果有前端構建則返回 index.html，否則返回 API 信息"""
+    if FRONTEND_DIST.exists():
+        index_file = FRONTEND_DIST / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file, media_type="text/html")
+    
+    # 開發模式：返回 API 信息
     return {
         "name": settings.app_name,
         "version": settings.app_version,
         "status": "running",
         "docs": "/docs",
-        "redoc": "/redoc"
+        "redoc": "/redoc",
+        "note": "前端開發模式請訪問 http://localhost:3000"
     }
+
+
+# SPA 路由處理 - 所有非 API 路徑都返回 index.html
+@app.get("/{full_path:path}")
+async def catch_all(full_path: str):
+    """捕獲所有路徑用於 SPA 路由"""
+    # API 路徑已經被路由器處理，這裡不會被執行
+    # 只處理前端路由
+    if FRONTEND_DIST.exists():
+        index_file = FRONTEND_DIST / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file, media_type="text/html")
+    
+    return JSONResponse(
+        {"detail": f"Path {full_path} not found and no frontend build available"},
+        status_code=404
+    )
 
 
 @app.get("/api/health")

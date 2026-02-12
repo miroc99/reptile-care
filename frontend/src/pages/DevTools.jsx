@@ -14,7 +14,8 @@ import {
   XCircle
 } from 'lucide-react';
 
-const API_BASE = 'http://localhost:8000';
+// 動態獲取 API base URL，支援本地和遠程訪問
+const API_BASE = window.location.origin;
 
 // 簡單的 Card 組件
 const Card = ({ children, className = '' }) => (
@@ -180,7 +181,9 @@ const DevTools = () => {
   useEffect(() => {
     const connectWebSocket = () => {
       try {
-        const ws = new WebSocket('ws://localhost:8000/api/dev/logs');
+        // 動態構建 WebSocket URL，支援 http/https 和本地/遠程訪問
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${protocol}//${window.location.host}/api/dev/logs`);
         
         ws.onopen = () => {
           console.log('WebSocket 已連接');
