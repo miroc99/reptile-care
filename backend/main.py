@@ -11,6 +11,7 @@ from services.modbus_controller import initialize_controller, shutdown_controlle
 from services.temperature_monitor import get_monitor_service
 from services.scheduler import get_scheduler_service
 from routers import relays, temperature, tanks, schedules
+from routers import dev_tools
 from sqlmodel import Session
 
 # 配置日誌
@@ -58,12 +59,17 @@ async def lifespan(app: FastAPI):
     with Session(engine) as session:
         await scheduler.load_all_schedules(session)
     
+    # 設置 WebSocket 日誌
+    logger.info("設置 WebSocket 日誌推送...")
+    dev_tools.setup_websocket_logging()
+    
     logger.info("✓ 系統啟動完成")
     
     yield
     
     # 關閉服務
     logger.info("關閉系統...")
+    dev_tools.remove_websocket_logging()
     await temp_monitor.stop()
     scheduler.shutdown()
     await shutdown_controller()
@@ -144,6 +150,7 @@ app.add_middleware(
 app.include_router(relays.router)
 app.include_router(temperature.router)
 app.include_router(tanks.router)
+app.include_router(dev_tools.router)
 app.include_router(schedules.router)
 
 

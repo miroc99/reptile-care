@@ -7,6 +7,7 @@ import TankDetail from './pages/TankDetail';
 import Schedule from './pages/Schedule';
 import ManualControl from './pages/ManualControl';
 import Alerts from './pages/Alerts';
+import DevTools from './pages/DevTools';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/schedule" element={<Schedule />} />
           <Route path="/control" element={<ManualControl />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/dev" element={<DevTools />} />
         </Route>
       </Routes>
     </Router>

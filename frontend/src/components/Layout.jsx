@@ -5,7 +5,8 @@ import {
   Box,
   Calendar, 
   ToggleRight, 
-  Bell, 
+  Bell,
+  Terminal,
   Menu, 
   X 
 } from 'lucide-react';
@@ -22,15 +23,26 @@ const Layout = () => {
     { name: '告警設定', href: '/alerts', icon: Bell },
   ];
 
+  const devNavigation = [
+    { name: '開發者工具', href: '/dev', icon: Terminal },
+  ];
+
   const isActive = (href) => location.pathname === href;
+
+  // 關閉側邊欄並導航（避免 iOS PWA 跳出問題）
+  const handleNavigation = (e) => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out ${
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out overflow-y-auto ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        <div className="flex items-center justify-between h-16 px-6 bg-gray-800">
+        <div className="flex items-center justify-between h-16 px-6 bg-gray-800 sticky top-0 z-10">
           <h1 className="text-xl font-bold text-white">爬蟲環控系統</h1>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -39,16 +51,42 @@ const Layout = () => {
             <X size={24} />
           </button>
         </div>
-        <nav className="mt-8">
+        <nav className="mt-8 pb-8">
           {navigation.map((item) => {
             const Icon = item.icon;
             return (
               <Link
                 key={item.name}
                 to={item.href}
+                onClick={handleNavigation}
                 className={`flex items-center px-6 py-3 text-sm font-medium transition-colors ${
                   isActive(item.href)
                     ? 'bg-gray-800 text-white border-l-4 border-blue-500'
+                    : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5 mr-3" />
+                {item.name}
+              </Link>
+            );
+          })}
+          
+          {/* 開發者工具分隔線 */}
+          <div className="mx-6 my-4 border-t border-gray-700"></div>
+          <div className="px-6 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            開發工具
+          </div>
+          
+          {devNavigation.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.name}
+                to={item.href}
+                onClick={handleNavigation}
+                className={`flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                  isActive(item.href)
+                    ? 'bg-gray-800 text-white border-l-4 border-green-500'
                     : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                 }`}
               >
