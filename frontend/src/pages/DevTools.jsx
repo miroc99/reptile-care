@@ -303,13 +303,13 @@ const DevTools = () => {
   }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 bg-gray-50 min-h-screen">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">開發者控制台</h1>
-          <p className="text-gray-600 mt-1">直接控制 Modbus 硬體、監控感測器和系統日誌</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">開發者控制台</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">直接控制 Modbus 硬體、監控感測器和系統日誌</p>
         </div>
-        <Badge variant={wsConnected ? 'success' : 'destructive'} className="text-sm">
+        <Badge variant={wsConnected ? 'success' : 'destructive'} className="text-sm self-start sm:self-auto">
           {wsConnected ? <CheckCircle className="w-4 h-4 mr-1" /> : <XCircle className="w-4 h-4 mr-1" />}
           {wsConnected ? '日誌已連接' : '日誌已斷開'}
         </Badge>
@@ -318,40 +318,40 @@ const DevTools = () => {
       {/* Modbus 繼電器控制 */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <CardTitle className="flex items-center">
               <Server className="w-5 h-5 mr-2" />
               Modbus 繼電器控制（16 通道）
             </CardTitle>
             <div className="flex gap-2">
-              <Button onClick={() => controlAllRelays(true)} variant="success" size="sm">
+              <Button onClick={() => controlAllRelays(true)} variant="success" size="sm" className="flex-1 sm:flex-none">
                 全開
               </Button>
-              <Button onClick={() => controlAllRelays(false)} variant="destructive" size="sm">
+              <Button onClick={() => controlAllRelays(false)} variant="destructive" size="sm" className="flex-1 sm:flex-none">
                 全關
               </Button>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {relayStatus.map((relay) => (
               <div
                 key={relay.channel}
-                className="border rounded-lg p-4 bg-gray-50 hover:shadow-md transition-shadow"
+                className="border rounded-lg p-3 bg-gray-50 hover:shadow-md transition-shadow"
               >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-semibold text-gray-700">CH {relay.channel}</span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-gray-700 text-sm">CH {relay.channel}</span>
                   <Badge variant={relay.state ? 'success' : 'default'}>
                     {relay.state ? 'ON' : 'OFF'}
                   </Badge>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <Button
                     onClick={() => controlRelay(relay.channel, !relay.state)}
                     variant={relay.state ? 'destructive' : 'success'}
                     size="sm"
-                    className="flex-1"
+                    className="flex-1 min-w-0 px-2"
                   >
                     {relay.state ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
                   </Button>
@@ -359,6 +359,7 @@ const DevTools = () => {
                     onClick={() => toggleRelay(relay.channel)}
                     variant="outline"
                     size="sm"
+                    className="px-2"
                   >
                     <ToggleLeft className="w-4 h-4" />
                   </Button>
@@ -366,6 +367,7 @@ const DevTools = () => {
                     onClick={() => flashRelay(relay.channel)}
                     variant="ghost"
                     size="sm"
+                    className="hidden sm:inline-flex px-2"
                   >
                     <Zap className="w-4 h-4" />
                   </Button>
