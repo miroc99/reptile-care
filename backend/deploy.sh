@@ -1,12 +1,16 @@
 #!/bin/bash
 
+# 獲取腳本所在目錄的絕對路徑
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 echo "================================================"
 echo "構建和部署爬蟲飼養環控系統"
 echo "================================================"
 echo ""
 
 echo "[1/3] 構建前端..."
-cd "$(dirname "$0")/../frontend"
+cd "$PROJECT_ROOT/frontend"
 npm run build
 if [ $? -ne 0 ]; then
     echo "錯誤: 前端構建失敗"
@@ -15,7 +19,7 @@ fi
 
 echo ""
 echo "[2/3] 檢查後端依賴..."
-cd "$(dirname "$0")"
+cd "$SCRIPT_DIR"
 uv sync
 if [ $? -ne 0 ]; then
     echo "錯誤: 後端依賴安裝失敗"
