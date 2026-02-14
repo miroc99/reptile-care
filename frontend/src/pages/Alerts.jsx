@@ -81,7 +81,7 @@ const Alerts = () => {
         </button>
       </div>
 
-      {/* 温度阈值设置 */}
+      {/* 溫度閾值設定 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
           <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />

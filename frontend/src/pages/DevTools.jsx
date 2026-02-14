@@ -11,7 +11,12 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Settings,
+  Plus,
+  Edit2,
+  X,
+  Save
 } from 'lucide-react';
 
 // 動態獲取 API base URL，支援本地和遠程訪問
@@ -117,7 +122,21 @@ const DevTools = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef(null);
   const logsEndRef = useRef(null);
-  const [autoScroll, setAutoScroll] = useState(true);
+  const [autoScroll, setAutoScroll] = useState(false);
+  
+  // 繼電器通道配置相關狀態
+  const [relayChannels, setRelayChannels] = useState([]);
+  const [tanks, setTanks] = useState([]);
+  const [showChannelModal, setShowChannelModal] = useState(false);
+  const [editingChannel, setEditingChannel] = useState(null);
+  const [channelFormData, setChannelFormData] = useState({
+    channel: 0,
+    name: '',
+    description: '',
+    tank_id: null,
+    device_type: 'relay',
+    enabled: true
+  });
 
   // 自動滾動到底部
   useEffect(() => {
@@ -159,6 +178,28 @@ const DevTools = () => {
     }
   };
 
+  // 載入繼電器通道配置
+  const loadRelayChannels = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/relays`);
+      const data = await response.json();
+      setRelayChannels(data);
+    } catch (error) {
+      console.error('載入繼電器通道配置失敗:', error);
+    }
+  };
+
+  // 載入飼養箱列表
+  const loadTanks = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/tanks`);
+      const data = await response.json();
+      setTanks(data);
+    } catch (error) {
+      console.error('載入飼養箱列表失敗:', error);
+    }
+  };
+
   // 初始載入
   useEffect(() => {
     const loadAll = async () => {
@@ -166,7 +207,9 @@ const DevTools = () => {
       await Promise.all([
         loadControllerStatus(),
         loadSensors(),
-        loadSystemInfo()
+        loadSystemInfo(),
+        loadRelayChannels(),
+        loadTanks()
       ]);
       setLoading(false);
     };
@@ -279,6 +322,79 @@ const DevTools = () => {
     setLogs([]);
   };
 
+  // 繼電器通道管理函數
+  const handleAddChannel = () => {
+    setEditingChannel(null);
+    setChannelFormData({
+      channel: 0,
+      name: '',
+      description: '',
+      tank_id: null,
+      device_type: 'relay',
+      enabled: true
+    });
+    setShowChannelModal(true);
+  };
+
+  const handleEditChannel = (channel) => {
+    setEditingChannel(channel);
+    setChannelFormData({
+      channel: channel.channel,
+      name: channel.name,
+      description: channel.description || '',
+      tank_id: channel.tank_id,
+      device_type: channel.device_type,
+      enabled: channel.enabled
+    });
+    setShowChannelModal(true);
+  };
+
+  const handleSaveChannel = async () => {
+    try {
+      const url = editingChannel 
+        ? `${API_BASE}/api/relays/${editingChannel.id}`
+        : `${API_BASE}/api/relays`;
+      
+      const method = editingChannel ? 'PATCH' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(channelFormData)
+      });
+
+      if (response.ok) {
+        await loadRelayChannels();
+        setShowChannelModal(false);
+      } else {
+        const error = await response.json();
+        alert(`保存失敗: ${error.detail}`);
+      }
+    } catch (error) {
+      console.error('保存繼電器通道失敗:', error);
+      alert('保存失敗，請檢查網絡連接');
+    }
+  };
+
+  const handleDeleteChannel = async (channelId) => {
+    if (!confirm('確定要刪除此繼電器通道配置嗎？')) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/${channelId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        await loadRelayChannels();
+      } else {
+        alert('刪除失敗');
+      }
+    } catch (error) {
+      console.error('刪除繼電器通道失敗:', error);
+      alert('刪除失敗，請檢查網絡連接');
+    }
+  };
+
   // 日誌級別顏色
   const getLogLevelColor = (level) => {
     const colors = {
@@ -375,6 +491,95 @@ const DevTools = () => {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* 繼電器通道配置 */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="flex items-center">
+              <Settings className="w-5 h-5 mr-2" />
+              繼電器通道配置
+            </CardTitle>
+            <Button onClick={handleAddChannel} size="sm" className="flex items-center gap-2">
+              <Plus className="w-4 h-4" />
+              添加通道
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {relayChannels.length === 0 ? (
+            <Alert variant="warning">
+              <AlertDescription>尚未配置任何繼電器通道，請點擊「添加通道」開始配置</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">通道</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">名稱</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">設備類型</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">關聯飼養缸</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">狀態</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {relayChannels.map((channel) => {
+                    const tank = tanks.find(t => t.id === channel.tank_id);
+                    return (
+                      <tr key={channel.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <Badge variant="default">CH {channel.channel}</Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <div className="font-medium text-gray-900">{channel.name}</div>
+                            {channel.description && (
+                              <div className="text-xs text-gray-500">{channel.description}</div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant="info">{channel.device_type}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700">
+                          {tank ? tank.name : '未關聯'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={channel.enabled ? 'success' : 'default'}>
+                            {channel.enabled ? '啟用' : '停用'}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => handleEditChannel(channel)}
+                              variant="outline"
+                              size="sm"
+                              className="px-2"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              onClick={() => handleDeleteChannel(channel.id)}
+                              variant="destructive"
+                              size="sm"
+                              className="px-2"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -536,6 +741,138 @@ const DevTools = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* 繼電器通道編輯模態框 */}
+      {showChannelModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingChannel ? '編輯繼電器通道' : '添加繼電器通道'}
+              </h3>
+              <button
+                onClick={() => setShowChannelModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="px-6 py-4 space-y-4">
+              {/* 通道編號 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  通道編號 (0-15) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="15"
+                  value={channelFormData.channel}
+                  onChange={(e) => setChannelFormData({...channelFormData, channel: parseInt(e.target.value)})}
+                  disabled={!!editingChannel}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                />
+              </div>
+
+              {/* 名稱 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  名稱 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={channelFormData.name}
+                  onChange={(e) => setChannelFormData({...channelFormData, name: e.target.value})}
+                  placeholder="例如：主缸加熱燈"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* 描述 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  描述
+                </label>
+                <textarea
+                  value={channelFormData.description}
+                  onChange={(e) => setChannelFormData({...channelFormData, description: e.target.value})}
+                  placeholder="選填：設備的詳細說明"
+                  rows="3"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* 設備類型 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  設備類型 <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={channelFormData.device_type}
+                  onChange={(e) => setChannelFormData({...channelFormData, device_type: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="relay">繼電器 (Relay)</option>
+                  <option value="heating">加熱設備 (Heating)</option>
+                  <option value="lighting">照明設備 (Lighting)</option>
+                  <option value="humidifier">加濕器 (Humidifier)</option>
+                  <option value="fan">風扇 (Fan)</option>
+                </select>
+              </div>
+
+              {/* 關聯飼養缸 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  關聯飼養缸
+                </label>
+                <select
+                  value={channelFormData.tank_id || ''}
+                  onChange={(e) => setChannelFormData({...channelFormData, tank_id: e.target.value ? parseInt(e.target.value) : null})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">未關聯</option>
+                  {tanks.map(tank => (
+                    <option key={tank.id} value={tank.id}>
+                      {tank.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 啟用狀態 */}
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={channelFormData.enabled}
+                  onChange={(e) => setChannelFormData({...channelFormData, enabled: e.target.checked})}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label className="ml-2 text-sm font-medium text-gray-700">
+                  啟用此通道
+                </label>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+              <Button
+                onClick={() => setShowChannelModal(false)}
+                variant="outline"
+              >
+                取消
+              </Button>
+              <Button
+                onClick={handleSaveChannel}
+                disabled={!channelFormData.name || channelFormData.channel < 0 || channelFormData.channel > 15}
+                className="flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

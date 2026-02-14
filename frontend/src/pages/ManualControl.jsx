@@ -1,74 +1,197 @@
-import React, { useState } from 'react';
-import { Power, Lightbulb, Zap, Wind, AlertCircle, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Power, Lightbulb, Zap, Wind, AlertCircle, ChevronDown, Activity } from 'lucide-react';
+
+// 動態獲取 API base URL
+const API_BASE = window.location.origin;
 
 const ManualControl = () => {
-  // 模拟多个缸
-  const [tanks] = useState([
-    {
-      id: 1,
-      name: '綠鬣蜥主缸',
-      devices: {
-        lighting: { id: 'lighting', name: '照明系統', status: 'on', icon: Lightbulb, color: 'yellow' },
-        heating: { id: 'heating', name: '加熱墊', status: 'on', icon: Zap, color: 'orange' },
-        uvb: { id: 'uvb', name: 'UVB燈', status: 'on', icon: Lightbulb, color: 'purple' },
-        cooling: { id: 'cooling', name: '散熱風扇', status: 'off', icon: Wind, color: 'blue' }
+  const [tanks, setTanks] = useState([]);
+  const [relayChannels, setRelayChannels] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [selectedTankId, setSelectedTankId] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // 載入飼養缸資料
+  const loadTanks = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/tanks`);
+      const data = await response.json();
+      setTanks(data);
+      if (data.length > 0 && !selectedTankId) {
+        setSelectedTankId(data[0].id);
       }
-    },
-    {
-      id: 2,
-      name: '球蟒繁殖缸',
-      devices: {
-        lighting: { id: 'lighting', name: '照明系統', status: 'on', icon: Lightbulb, color: 'yellow' },
-        heating: { id: 'heating', name: '陶瓷加熱器', status: 'on', icon: Zap, color: 'orange' },
-        cooling: { id: 'cooling', name: '散熱風扇', status: 'off', icon: Wind, color: 'blue' }
+    } catch (error) {
+      console.error('載入飼養缸失敗:', error);
+    }
+  };
+
+  // 載入繼電器通道資料
+  const loadRelayChannels = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/relays`);
+      const data = await response.json();
+      setRelayChannels(data);
+    } catch (error) {
+      console.error('載入繼電器資料失敗:', error);
+    }
+  };
+
+  // 載入排程資料
+  const loadSchedules = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/schedules`);
+      const data = await response.json();
+      setSchedules(data);
+    } catch (error) {
+      console.error('載入排程資料失敗:', error);
+    }
+  };
+
+  // 初始載入
+  useEffect(() => {
+    const loadAll = async () => {
+      setLoading(true);
+      await Promise.all([loadTanks(), loadRelayChannels(), loadSchedules()]);
+      setLoading(false);
+    };
+    loadAll();
+
+    // 每 2 秒更新繼電器狀態
+    const interval = setInterval(loadRelayChannels, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 控制繼電器
+  const handleToggle = async (channel) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/${channel.id}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          state: !channel.current_state,
+          manual: true
+        })
+      });
+
+      if (response.ok) {
+        await loadRelayChannels();
+      } else {
+        alert('控制失敗');
       }
-    },
-    {
-      id: 3,
-      name: '豹紋守宮幼體缸',
-      devices: {
-        lighting: { id: 'lighting', name: '照明系統', status: 'off', icon: Lightbulb, color: 'yellow' },
-        heating: { id: 'heating', name: '加熱墊', status: 'on', icon: Zap, color: 'orange' }
+    } catch (error) {
+      console.error('控制繼電器失敗:', error);
+      alert('控制失敗，請檢查網路連接');
+    }
+  };
+
+  // 取消手動覆寫
+  const handleClearOverride = async (channel) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/${channel.id}/clear-override`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        await loadRelayChannels();
+        alert(`${channel.name} 已回到自動排程控制模式`);
+      } else {
+        alert('操作失敗');
+      }
+    } catch (error) {
+      console.error('清除手動覆寫失敗:', error);
+      alert('操作失敗，請檢查網路連接');
+    }
+  };
+
+  // 獲取設備相關的排程
+  const getRelaySchedules = (relayId) => {
+    return schedules.filter(s => s.relay_channel_id === relayId && s.active);
+  };
+
+  // 全部開啟
+  const handleAllOn = async () => {
+    const selectedChannels = relayChannels.filter(ch => 
+      ch.tank_id === selectedTankId && ch.enabled
+    );
+
+    for (const channel of selectedChannels) {
+      if (!channel.current_state) {
+        await handleToggle(channel);
       }
     }
-  ]);
-
-  const [selectedTankId, setSelectedTankId] = useState(1);
-  const [devices, setDevices] = useState(tanks[0].devices);
-  const [overrideMode, setOverrideMode] = useState(false);
-  const [targetTemp, setTargetTemp] = useState(28);
-
-  const handleTankChange = (tankId) => {
-    setSelectedTankId(tankId);
-    const tank = tanks.find(t => t.id === tankId);
-    setDevices(tank.devices);
   };
 
-  const handleToggle = (deviceId) => {
-    setDevices(prev => ({
-      ...prev,
-      [deviceId]: {
-        ...prev[deviceId],
-        status: prev[deviceId].status === 'on' ? 'off' : 'on'
+  // 全部關閉
+  const handleAllOff = async () => {
+    const selectedChannels = relayChannels.filter(ch => 
+      ch.tank_id === selectedTankId && ch.enabled
+    );
+
+    for (const channel of selectedChannels) {
+      if (channel.current_state) {
+        await handleToggle(channel);
       }
-    }));
+    }
   };
 
-  const handleAllOn = () => {
-    const updatedDevices = {};
-    Object.keys(devices).forEach(key => {
-      updatedDevices[key] = { ...devices[key], status: 'on' };
-    });
-    setDevices(updatedDevices);
+  // 取得選中飼養缸的繼電器通道
+  const getSelectedTankChannels = () => {
+    return relayChannels.filter(ch => ch.tank_id === selectedTankId && ch.enabled);
   };
 
-  const handleAllOff = () => {
-    const updatedDevices = {};
-    Object.keys(devices).forEach(key => {
-      updatedDevices[key] = { ...devices[key], status: 'off' };
-    });
-    setDevices(updatedDevices);
+  // 設備類型圖示
+  const getDeviceIcon = (deviceType) => {
+    const icons = {
+      lighting: Lightbulb,
+      heating: Zap,
+      humidifier: Wind,
+      fan: Wind,
+      relay: Power
+    };
+    return icons[deviceType] || Power;
   };
+
+  // 設備類型顏色
+  const getDeviceColor = (deviceType) => {
+    const colors = {
+      lighting: { bg: 'bg-yellow-100', text: 'text-yellow-600', button: 'bg-yellow-600 hover:bg-yellow-700' },
+      heating: { bg: 'bg-orange-100', text: 'text-orange-600', button: 'bg-orange-600 hover:bg-orange-700' },
+      humidifier: { bg: 'bg-blue-100', text: 'text-blue-600', button: 'bg-blue-600 hover:bg-blue-700' },
+      fan: { bg: 'bg-cyan-100', text: 'text-cyan-600', button: 'bg-cyan-600 hover:bg-cyan-700' },
+      relay: { bg: 'bg-purple-100', text: 'text-purple-600', button: 'bg-purple-600 hover:bg-purple-700' }
+    };
+    return colors[deviceType] || colors.relay;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <Activity className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">載入中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (tanks.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-gray-600 mb-4">尚未建立任何飼養缸</p>
+          <a 
+            href="/tanks"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-block"
+          >
+            前往建立飼養缸
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  const selectedTank = tanks.find(t => t.id === selectedTankId);
+  const tankChannels = getSelectedTankChannels();
 
   const colorClasses = {
     yellow: {
@@ -113,13 +236,13 @@ const ManualControl = () => {
         </div>
       </div>
 
-      {/* 缸选择器 */}
+      {/* 飼養缸選擇器 */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-3">選擇飼養缸</h2>
         <div className="relative">
           <select
-            value={selectedTankId}
-            onChange={(e) => handleTankChange(Number(e.target.value))}
+            value={selectedTankId || ''}
+            onChange={(e) => setSelectedTankId(Number(e.target.value))}
             className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white text-lg font-medium"
           >
             {tanks.map(tank => (
@@ -132,140 +255,142 @@ const ManualControl = () => {
         </div>
       </div>
 
-      {/* 覆写模式警告 */}
-      {overrideMode && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+      {/* 飼養缸資訊 */}
+      {selectedTank && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3">飼養缸資訊</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
-              <h3 className="text-sm font-medium text-amber-800">覆寫模式已啟用</h3>
-              <p className="text-sm text-amber-700 mt-1">
-                手動控制將覆蓋自動排程。關閉覆寫模式以恢復自動控制。
-              </p>
+              <div className="text-sm text-gray-600">飼養缸名稱</div>
+              <div className="text-lg font-semibold text-gray-900">{selectedTank.name}</div>
+            </div>
+            <div>
+              <div className="text-sm text-gray-600">目標溫度範圍</div>
+              <div className="text-lg font-semibold text-blue-600">
+                {selectedTank.target_temp_min}°C - {selectedTank.target_temp_max}°C
+              </div>
+            </div>
+            {selectedTank.target_humidity_min && (
+              <div>
+                <div className="text-sm text-gray-600">目標濕度範圍</div>
+                <div className="text-lg font-semibold text-green-600">
+                  {selectedTank.target_humidity_min}% - {selectedTank.target_humidity_max}%
+                </div>
+              </div>
+            )}
+            <div>
+              <div className="text-sm text-gray-600">設備數量</div>
+              <div className="text-lg font-semibold text-purple-600">{tankChannels.length} 個</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 覆写模式开关 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between">
+      {/* 警告訊息 */}
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="flex items-start space-x-3">
+          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">覆寫自動排程</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              啟用後，手動控制將優先於自動排程
+            <h3 className="text-sm font-medium text-amber-800">手動控制模式</h3>
+            <p className="text-sm text-amber-700 mt-1">
+              手動控制的設備將設置為覆寫模式，自動排程將不會影響這些設備。
             </p>
           </div>
-          <button
-            onClick={() => setOverrideMode(!overrideMode)}
-            className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-              overrideMode ? 'bg-blue-600' : 'bg-gray-200'
-            }`}
+        </div>
+      </div>
+
+      {/* 設備控制卡片 */}
+      {tankChannels.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <p className="text-gray-600 mb-4">此飼養缸尚未關聯任何設備</p>
+          <a
+            href="/dev-tools"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-block"
           >
-            <span
-              className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                overrideMode ? 'translate-x-7' : 'translate-x-1'
-              }`}
-            />
-          </button>
+            前往開發者工具設定
+          </a>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tankChannels.map((channel) => {
+            const Icon = getDeviceIcon(channel.device_type);
+            const colors = getDeviceColor(channel.device_type);
+            const isOn = channel.current_state;
+            const isManual = channel.manual_override;
+            const relaySchedules = getRelaySchedules(channel.id);
+            const hasSchedule = relaySchedules.length > 0;
 
-      {/* 目标温度设置 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">目標溫度設定</h2>
-        <div className="flex items-center space-x-4">
-          <input
-            type="range"
-            min="20"
-            max="35"
-            value={targetTemp}
-            onChange={(e) => setTargetTemp(Number(e.target.value))}
-            className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-          />
-          <div className="flex items-center space-x-2">
-            <span className="text-3xl font-bold text-gray-900">{targetTemp}</span>
-            <span className="text-xl text-gray-600">°C</span>
-          </div>
-        </div>
-        <div className="flex justify-between text-sm text-gray-600 mt-2">
-          <span>20°C</span>
-          <span>35°C</span>
-        </div>
-      </div>
-
-      {/* 设备控制卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Object.values(devices).map((device) => {
-          const Icon = device.icon;
-          const colors = colorClasses[device.color];
-          const isOn = device.status === 'on';
-
-          return (
-            <div key={device.id} className="bg-white rounded-lg shadow overflow-hidden">
-              <div className={`p-6 ${isOn ? colors.bg : 'bg-gray-50'}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <Icon className={`w-12 h-12 ${isOn ? colors.text : 'text-gray-400'}`} />
-                  <div className={`w-4 h-4 rounded-full ${isOn ? 'bg-green-500' : 'bg-gray-300'} animate-pulse`} />
+            return (
+              <div key={channel.id} className="bg-white rounded-lg shadow overflow-hidden">
+                <div className={`p-6 ${isOn ? colors.bg : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <Icon className={`w-12 h-12 ${isOn ? colors.text : 'text-gray-400'}`} />
+                    <div className={`w-4 h-4 rounded-full ${isOn ? 'bg-green-500' : 'bg-gray-300'} ${isOn ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">{channel.name}</h3>
+                  <p className="text-sm text-gray-600 mt-1">通道 {channel.channel}</p>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900">{device.name}</h3>
-              </div>
-              
-              <div className="p-6 bg-white">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-gray-700">
-                    狀態: <span className={isOn ? 'text-green-600' : 'text-gray-600'}>
-                      {isOn ? '運行中' : '已關閉'}
+                
+                <div className="p-6 bg-white space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      狀態: <span className={isOn ? 'text-green-600' : 'text-gray-600'}>
+                        {isOn ? '運行中' : '已關閉'}
+                      </span>
                     </span>
-                  </span>
+                    
+                    {/* 控制模式標示 */}
+                    {isManual ? (
+                      <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded font-semibold">
+                        🔧 手動
+                      </span>
+                    ) : hasSchedule ? (
+                      <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-semibold">
+                        ⏰ 自動
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
+                        無排程
+                      </span>
+                    )}
+                  </div>
+                  
+                  {/* 排程資訊 */}
+                  {hasSchedule && (
+                    <div className="text-xs text-gray-600 space-y-1">
+                      {relaySchedules.map(schedule => (
+                        <div key={schedule.id} className="flex items-center">
+                          <span>📅 {schedule.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  <button
+                    onClick={() => handleToggle(channel)}
+                    className={`w-full py-3 rounded-lg font-medium text-white transition-colors flex items-center justify-center space-x-2 ${
+                      isOn ? 'bg-red-600 hover:bg-red-700' : colors.button
+                    }`}
+                  >
+                    <Power className="w-5 h-5" />
+                    <span>{isOn ? '關閉' : '開啟'}</span>
+                  </button>
+                  
+                  {/* 回到自動模式按鈕 */}
+                  {isManual && (
+                    <button
+                      onClick={() => handleClearOverride(channel)}
+                      className="w-full py-2 text-sm rounded-lg font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                    >
+                      ⏰ 回到自動模式
+                    </button>
+                  )}
                 </div>
-                
-                <button
-                  onClick={() => handleToggle(device.id)}
-                  disabled={!overrideMode}
-                  className={`w-full py-3 rounded-lg font-medium text-white transition-colors flex items-center justify-center space-x-2 ${
-                    overrideMode 
-                      ? (isOn ? 'bg-red-600 hover:bg-red-700' : `${colors.button}`)
-                      : 'bg-gray-300 cursor-not-allowed'
-                  }`}
-                >
-                  <Power className="w-5 h-5" />
-                  <span>{isOn ? '關閉' : '開啟'}</span>
-                </button>
-                
-                {!overrideMode && (
-                  <p className="text-xs text-gray-500 text-center mt-2">
-                    請啟用覆寫模式以進行手動控制
-                  </p>
-                )}
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 操作历史 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">最近操作記錄</h2>
-        <div className="space-y-3">
-          {[
-            { time: '14:32', action: '照明系統已開啟', user: '手動控制' },
-            { time: '13:15', action: '加熱系統已關閉', user: '自動排程' },
-            { time: '12:00', action: '目標溫度設定為 28°C', user: '手動控制' },
-            { time: '08:00', action: '照明系統已開啟', user: '自動排程' }
-          ].map((log, index) => (
-            <div key={index} className="flex items-center justify-between py-2 border-b last:border-b-0">
-              <div className="flex items-center space-x-3">
-                <span className="text-sm font-medium text-gray-500">{log.time}</span>
-                <span className="text-sm text-gray-900">{log.action}</span>
-              </div>
-              <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                {log.user}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 };
