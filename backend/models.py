@@ -9,6 +9,7 @@ class Tank(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(index=True)
     description: Optional[str] = None
+    image_url: Optional[str] = None  # 飼養缸圖片 URL 或 base64
     target_temp_min: float = 25.0
     target_temp_max: float = 30.0
     target_humidity_min: Optional[float] = None

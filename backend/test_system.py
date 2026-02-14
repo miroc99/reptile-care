@@ -16,7 +16,7 @@ async def test_modbus_controller():
     print("測試 1: Modbus RTU 繼電器控制器")
     print("=" * 60)
 
-    controller = ModbusRelayController(port="COM4", baudrate=9600)
+    controller = ModbusRelayController(port="/dev/ttyUSB0", baudrate=9600)
     await controller.connect()
 
     # 讀取所有狀態

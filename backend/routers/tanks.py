@@ -13,6 +13,7 @@ router = APIRouter(prefix="/api/tanks", tags=["飼養箱管理"])
 class TankCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    image_url: Optional[str] = None
     target_temp_min: float = 25.0
     target_temp_max: float = 30.0
     target_humidity_min: Optional[float] = None
@@ -23,6 +24,7 @@ class TankCreate(BaseModel):
 class TankUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    image_url: Optional[str] = None
     target_temp_min: Optional[float] = None
     target_temp_max: Optional[float] = None
     target_humidity_min: Optional[float] = None
@@ -34,6 +36,7 @@ class TankResponse(BaseModel):
     id: int
     name: str
     description: Optional[str]
+    image_url: Optional[str]
     target_temp_min: float
     target_temp_max: float
     target_humidity_min: Optional[float]
