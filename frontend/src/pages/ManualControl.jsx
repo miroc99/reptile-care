@@ -134,6 +134,54 @@ const ManualControl = () => {
     }
   };
 
+  // 全部設為自動排程模式
+  const handleClearAllOverrides = async () => {
+    if (!confirm('確定要將所有設備設為自動排程模式嗎？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/control/clear-all-overrides`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        await loadRelayChannels();
+        alert(`成功：${result.message}`);
+      } else {
+        alert('操作失敗');
+      }
+    } catch (error) {
+      console.error('清除手動覆寫失敗:', error);
+      alert('操作失敗，請檢查網路連接');
+    }
+  };
+
+  // 同步排程狀態
+  const handleSyncSchedules = async () => {
+    if (!confirm('確定要立即同步所有排程狀態嗎？這將根據當前時間和排程規則更新所有設備。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/control/sync-schedules`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        await loadRelayChannels();
+        alert(`成功：${result.message}\n活躍排程: ${result.active_schedules} 個`);
+      } else {
+        alert('同步失敗');
+      }
+    } catch (error) {
+      console.error('同步排程失敗:', error);
+      alert('同步失敗，請檢查網路連接');
+    }
+  };
+
   // 取得選中飼養缸的繼電器通道
   const getSelectedTankChannels = () => {
     return relayChannels.filter(ch => ch.tank_id === selectedTankId && ch.enabled);
@@ -218,9 +266,9 @@ const ManualControl = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-3xl font-bold text-gray-900">手動控制</h1>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 flex-wrap gap-2">
           <button
             onClick={handleAllOn}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
@@ -232,6 +280,20 @@ const ManualControl = () => {
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             全部關閉
+          </button>
+          <button
+            onClick={handleClearAllOverrides}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1"
+          >
+            <span>⏰</span>
+            <span>全部設為自動</span>
+          </button>
+          <button
+            onClick={handleSyncSchedules}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-1"
+          >
+            <span>🔄</span>
+            <span>同步排程狀態</span>
           </button>
         </div>
       </div>

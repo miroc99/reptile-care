@@ -168,6 +168,54 @@ const TankDetail = () => {
     return schedules.filter(s => s.relay_channel_id === relayId && s.active);
   };
 
+  // 全部設為自動排程模式
+  const handleClearAllOverrides = async () => {
+    if (!confirm('確定要將此飼養缸的所有設備設為自動排程模式嗎？')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/control/clear-all-overrides`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        await loadRelayChannels();
+        alert(`成功：${result.message}`);
+      } else {
+        alert('操作失敗');
+      }
+    } catch (error) {
+      console.error('清除手動覆寫失敗:', error);
+      alert('操作失敗，請檢查網路連接');
+    }
+  };
+
+  // 同步排程狀態
+  const handleSyncSchedules = async () => {
+    if (!confirm('確定要立即同步所有排程狀態嗎？這將根據當前時間和排程規則更新所有設備。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE}/api/relays/control/sync-schedules`, {
+        method: 'POST'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        await loadRelayChannels();
+        alert(`成功：${result.message}\n活躍排程: ${result.active_schedules} 個`);
+      } else {
+        alert('同步失敗');
+      }
+    } catch (error) {
+      console.error('同步排程失敗:', error);
+      alert('同步失敗，請檢查網路連接');
+    }
+  };
+
   const getTempStatus = () => {
     if (!tank || currentTemp === null) return { text: '無資料', color: 'text-gray-600', bg: 'bg-gray-100' };
     if (currentTemp < tank.target_temp_min) return { text: '偏低', color: 'text-blue-600', bg: 'bg-blue-100' };
@@ -322,7 +370,25 @@ const TankDetail = () => {
 
       {/* 设备控制面板 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">設備控制</h3>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h3 className="text-lg font-semibold text-gray-900">設備控制</h3>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleClearAllOverrides}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1"
+            >
+              <span>⏰</span>
+              <span>全部自動</span>
+            </button>
+            <button
+              onClick={handleSyncSchedules}
+              className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-1"
+            >
+              <span>🔄</span>
+              <span>同步排程</span>
+            </button>
+          </div>
+        </div>
         {relayChannels.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Power className="w-12 h-12 mx-auto mb-2 text-gray-400" />

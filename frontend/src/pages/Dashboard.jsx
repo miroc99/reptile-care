@@ -186,9 +186,9 @@ const Dashboard = () => {
           return (
             <div key={tank.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden">
               {/* 頭部圖片區域 */}
-              <div className="h-32 bg-gradient-to-br from-green-400 to-blue-500 relative">
-                {tank.image ? (
-                  <img src={tank.image} alt={tank.name} className="w-full h-full object-cover" />
+              <div className="h-32 bg-gradient-to-br from-green-400 to-blue-500 relative overflow-hidden">
+                {tank.image_url ? (
+                  <img src={tank.image_url} alt={tank.name} className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-white text-4xl font-bold">
                     {tank.name.charAt(0)}

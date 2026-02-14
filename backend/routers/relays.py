@@ -254,3 +254,115 @@ async def turn_all_relays_off(session: Session = Depends(get_session)):
     session.commit()
     
     return {"success": True, "message": "所有繼電器已關閉"}
+
+
+@router.post("/control/clear-all-overrides")
+def clear_all_manual_overrides(session: Session = Depends(get_session)):
+    """清除所有繼電器的手動覆寫模式"""
+    relays = session.exec(select(RelayChannel)).all()
+    
+    count = 0
+    for relay in relays:
+        if relay.manual_override:
+            relay.manual_override = False
+            relay.updated_at = datetime.utcnow()
+            session.add(relay)
+            count += 1
+    
+    # 記錄事件
+    event = EventLog(
+        event_type="relay_control",
+        severity="info",
+        message=f"已清除 {count} 個繼電器的手動覆寫模式，回到自動控制"
+    )
+    session.add(event)
+    session.commit()
+    
+    return {"success": True, "message": f"已清除 {count} 個設備的手動覆寫模式", "count": count}
+
+
+@router.post("/control/sync-schedules")
+async def sync_schedule_states(session: Session = Depends(get_session)):
+    """同步排程狀態 - 立即根據當前時間和排程規則更新所有繼電器狀態"""
+    from models import Schedule
+    from datetime import datetime, time as dt_time
+    
+    controller = get_controller()
+    now = datetime.now()
+    current_time = now.time()
+    current_weekday = now.weekday()  # 0=週一, 6=週日
+    
+    # 獲取所有啟用的排程
+    schedules = session.exec(select(Schedule).where(Schedule.active == True)).all()
+    
+    # 建立繼電器狀態字典
+    relay_states = {}  # relay_channel_id -> should_be_on
+    relay_schedules = {}  # relay_channel_id -> list of active schedules
+    
+    for schedule in schedules:
+        # 檢查排程是否應該在當前時間生效
+        should_activate = False
+        
+        if schedule.schedule_type == "daily":
+            if schedule.start_time and schedule.end_time:
+                start = dt_time.fromisoformat(schedule.start_time)
+                end = dt_time.fromisoformat(schedule.end_time)
+                
+                # 檢查星期
+                if schedule.days_of_week:
+                    days = [int(d) for d in schedule.days_of_week.split(',')]
+                    if current_weekday not in days:
+                        continue
+                
+                # 檢查時間範圍
+                if start <= end:
+                    # 正常情況：如 08:00 - 20:00
+                    should_activate = start <= current_time <= end
+                else:
+                    # 跨午夜情況：如 22:00 - 06:00
+                    should_activate = current_time >= start or current_time <= end
+        
+        if should_activate:
+            relay_id = schedule.relay_channel_id
+            if relay_id not in relay_schedules:
+                relay_schedules[relay_id] = []
+            relay_schedules[relay_id].append(schedule)
+            
+            # 使用優先級決定狀態（優先級高的排程優先）
+            if relay_id not in relay_states or schedule.priority > relay_schedules[relay_id][0].priority:
+                relay_states[relay_id] = True
+    
+    # 更新繼電器狀態
+    updated_count = 0
+    relays = session.exec(select(RelayChannel)).all()
+    
+    for relay in relays:
+        # 只更新非手動覆寫模式且已啟用的繼電器
+        if not relay.manual_override and relay.enabled:
+            target_state = relay_states.get(relay.id, False)
+            
+            if relay.current_state != target_state:
+                # 更新硬體狀態
+                success = await controller.set_relay(relay.channel, target_state)
+                
+                if success:
+                    relay.current_state = target_state
+                    relay.updated_at = datetime.utcnow()
+                    session.add(relay)
+                    updated_count += 1
+    
+    # 記錄事件
+    event = EventLog(
+        event_type="schedule_run",
+        severity="info",
+        message=f"排程同步完成，已更新 {updated_count} 個繼電器狀態"
+    )
+    session.add(event)
+    session.commit()
+    
+    return {
+        "success": True,
+        "message": f"排程同步完成，已更新 {updated_count} 個設備",
+        "updated_count": updated_count,
+        "active_schedules": len(relay_schedules)
+    }
