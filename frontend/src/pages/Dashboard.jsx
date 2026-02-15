@@ -11,6 +11,7 @@ const Dashboard = () => {
   
   const [tanks, setTanks] = useState([]);
   const [relayChannels, setRelayChannels] = useState([]);
+  const [activeAlerts, setActiveAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // 載入飼養缸資料
@@ -59,18 +60,34 @@ const Dashboard = () => {
     }
   };
 
+  // 載入活躍告警
+  const loadActiveAlerts = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/events/alerts/active?limit=5`);
+      const data = await response.json();
+      setActiveAlerts(data);
+    } catch (error) {
+      console.error('載入告警資料失敗:', error);
+    }
+  };
+
   // 初始載入
   useEffect(() => {
     const loadAll = async () => {
       setLoading(true);
-      await Promise.all([loadTanks(), loadRelayChannels()]);
+      await Promise.all([loadTanks(), loadRelayChannels(), loadActiveAlerts()]);
       setLoading(false);
     };
     loadAll();
 
     // 每 5 秒更新一次溫度資料
-    const interval = setInterval(loadTanks, 5000);
-    return () => clearInterval(interval);
+    const tempInterval = setInterval(loadTanks, 5000);
+    // 每 30 秒更新一次告警資料
+    const alertInterval = setInterval(loadActiveAlerts, 30000);
+    return () => {
+      clearInterval(tempInterval);
+      clearInterval(alertInterval);
+    };
   }, []);
 
   // 計算溫度狀態
@@ -137,13 +154,17 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
+        <div 
+          className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => navigate('/alerts')}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">異常警報</p>
               <p className="text-3xl font-bold text-red-600 mt-2">
-                {tanks.filter(t => getTempStatus(t.currentTemp, t.targetTempMin, t.targetTempMax) !== 'normal').length}
+                {activeAlerts.length}
               </p>
+              <p className="text-xs text-gray-500 mt-1">點擊查看詳情</p>
             </div>
             <div className="p-3 bg-red-100 rounded-full">
               <AlertTriangle className="w-8 h-8 text-red-600" />
@@ -165,6 +186,72 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* 最新告警 */}
+      {activeAlerts.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
+              最新告警
+            </h2>
+            <button
+              onClick={() => navigate('/alerts')}
+              className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+            >
+              查看全部
+              <ChevronRight className="w-4 h-4 ml-1" />
+            </button>
+          </div>
+          <div className="space-y-3">
+            {activeAlerts.map((alert) => {
+              const getAlertColor = (type) => {
+                switch (type) {
+                  case 'critical':
+                    return 'bg-red-50 border-red-200';
+                  case 'error':
+                    return 'bg-orange-50 border-orange-200';
+                  case 'warning':
+                    return 'bg-yellow-50 border-yellow-200';
+                  default:
+                    return 'bg-gray-50 border-gray-200';
+                }
+              };
+              
+              const getAlertIcon = (type) => {
+                return <AlertTriangle className={`w-4 h-4 ${
+                  type === 'critical' ? 'text-red-600' :
+                  type === 'error' ? 'text-orange-600' :
+                  'text-yellow-600'
+                }`} />;
+              };
+              
+              return (
+                <div
+                  key={alert.id}
+                  className={`flex items-start justify-between p-3 border rounded-lg ${getAlertColor(alert.type)}`}
+                >
+                  <div className="flex items-start space-x-2">
+                    {getAlertIcon(alert.type)}
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{alert.message}</p>
+                      <p className="text-xs text-gray-600 mt-1">{alert.time}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                    alert.type === 'critical' ? 'bg-red-100 text-red-800' :
+                    alert.type === 'error' ? 'bg-orange-100 text-orange-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {alert.type === 'critical' ? '嚴重' :
+                     alert.type === 'error' ? '錯誤' : '警告'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 各飼養缸狀態卡片 */}
       {tanks.length === 0 ? (

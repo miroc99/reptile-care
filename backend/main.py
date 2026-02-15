@@ -13,7 +13,7 @@ from models import RelayChannel, Tank
 from services.modbus_controller import initialize_controller, shutdown_controller
 from services.temperature_monitor import get_monitor_service
 from services.scheduler import get_scheduler_service
-from routers import relays, temperature, tanks, schedules
+from routers import relays, temperature, tanks, schedules, events
 from routers import dev_tools
 from sqlmodel import Session
 
@@ -156,6 +156,7 @@ app.include_router(temperature.router)
 app.include_router(tanks.router)
 app.include_router(dev_tools.router)
 app.include_router(schedules.router)
+app.include_router(events.router)
 
 # 前端靜態文件路徑
 FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"

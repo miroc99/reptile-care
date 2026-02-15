@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
-import { Bell, Mail, MessageSquare, Save, AlertTriangle, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bell, Mail, MessageSquare, Save, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+
+// 動態獲取 API base URL
+const API_BASE = window.location.origin;
 
 const Alerts = () => {
   const [settings, setSettings] = useState({
@@ -14,29 +17,31 @@ const Alerts = () => {
     telegramChatId: ''
   });
 
-  const [alerts, setAlerts] = useState([
-    {
-      id: 1,
-      type: 'warning',
-      message: '溫度接近上限 (31.5°C)',
-      time: '2026-02-12 14:30',
-      resolved: false
-    },
-    {
-      id: 2,
-      type: 'error',
-      message: '加熱系統連線中斷',
-      time: '2026-02-12 12:15',
-      resolved: true
-    },
-    {
-      id: 3,
-      type: 'info',
-      message: '排程已更新',
-      time: '2026-02-12 10:00',
-      resolved: true
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 載入告警資料
+  const loadAlerts = async () => {
+    try {
+      setRefreshing(true);
+      const response = await fetch(`${API_BASE}/api/events/alerts?limit=50`);
+      const data = await response.json();
+      setAlerts(data);
+    } catch (error) {
+      console.error('載入告警資料失敗:', error);
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadAlerts();
+    // 每 30 秒自動刷新一次
+    const interval = setInterval(loadAlerts, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSave = () => {
     alert('設定已儲存！');
@@ -48,8 +53,10 @@ const Alerts = () => {
 
   const getAlertIcon = (type) => {
     switch (type) {
-      case 'error':
+      case 'critical':
         return <AlertTriangle className="w-5 h-5 text-red-600" />;
+      case 'error':
+        return <AlertTriangle className="w-5 h-5 text-orange-600" />;
       case 'warning':
         return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
       default:
@@ -59,8 +66,10 @@ const Alerts = () => {
 
   const getAlertColor = (type) => {
     switch (type) {
-      case 'error':
+      case 'critical':
         return 'bg-red-50 border-red-200';
+      case 'error':
+        return 'bg-orange-50 border-orange-200';
       case 'warning':
         return 'bg-yellow-50 border-yellow-200';
       default:
@@ -277,35 +286,69 @@ const Alerts = () => {
 
       {/* 告警历史 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-          <Bell className="w-5 h-5 mr-2 text-purple-600" />
-          告警歷史
-        </h2>
-        <div className="space-y-3">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className={`flex items-start justify-between p-4 border rounded-lg ${getAlertColor(alert.type)} ${
-                alert.resolved ? 'opacity-60' : ''
-              }`}
-            >
-              <div className="flex items-start space-x-3">
-                {getAlertIcon(alert.type)}
-                <div>
-                  <p className="font-medium text-gray-900">{alert.message}</p>
-                  <p className="text-sm text-gray-600 mt-1">{alert.time}</p>
-                </div>
-              </div>
-              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                alert.resolved 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {alert.resolved ? '已解決' : '進行中'}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+            <Bell className="w-5 h-5 mr-2 text-purple-600" />
+            告警歷史
+            {alerts.length > 0 && (
+              <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
+                {alerts.length} 條記錄
               </span>
-            </div>
-          ))}
+            )}
+          </h2>
+          <button
+            onClick={loadAlerts}
+            disabled={refreshing}
+            className="flex items-center space-x-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>刷新</span>
+          </button>
         </div>
+        {loading ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="text-gray-600 mt-2">載入中...</p>
+          </div>
+        ) : alerts.length === 0 ? (
+          <div className="text-center py-8">
+            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
+            <p className="text-gray-600">目前沒有告警記錄</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {alerts.map((alert) => (
+              <div
+                key={alert.id}
+                className={`flex items-start justify-between p-4 border rounded-lg ${getAlertColor(alert.type)} ${
+                  alert.resolved ? 'opacity-60' : ''
+                }`}
+              >
+                <div className="flex items-start space-x-3">
+                  {getAlertIcon(alert.type)}
+                  <div>
+                    <p className="font-medium text-gray-900">{alert.message}</p>
+                    <p className="text-sm text-gray-600 mt-1">{alert.time}</p>
+                    {alert.details && (
+                      <p className="text-xs text-gray-500 mt-1">{alert.details}</p>
+                    )}
+                  </div>
+                </div>
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
+                  alert.resolved 
+                    ? 'bg-green-100 text-green-800' 
+                    : alert.type === 'critical'
+                    ? 'bg-red-100 text-red-800'
+                    : alert.type === 'error'
+                    ? 'bg-orange-100 text-orange-800'
+                    : 'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {alert.resolved ? '已解決' : '進行中'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

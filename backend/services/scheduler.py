@@ -30,7 +30,7 @@ class SchedulerService:
         """
         self.scheduler = AsyncIOScheduler()
         self.db_session_factory = db_session_factory
-        self._job_map: Dict[int, str] = {}  # schedule_id -> job_id
+        self._job_map: Dict[int, List[str]] = {}  # schedule_id -> [job_id_on, job_id_off]
         
         logger.info("SchedulerService 初始化")
     
@@ -62,64 +62,95 @@ class SchedulerService:
         if schedule.id in self._job_map:
             await self.remove_schedule(schedule.id)
         
+        job_ids = []
+        
         # 根據排程類型創建觸發器
-        trigger = self._create_trigger(schedule)
+        if schedule.schedule_type in ["daily", "weekly"]:
+            # 為 start_time 和 end_time 分別創建任務
+            if schedule.start_time:
+                trigger_on = self._create_trigger(schedule, schedule.start_time)
+                if trigger_on:
+                    job_on = self.scheduler.add_job(
+                        self._execute_schedule,
+                        trigger=trigger_on,
+                        args=[schedule.id, True],  # True 表示開啟
+                        id=f"schedule_{schedule.id}_on",
+                        name=f"{schedule.name} (開啟)",
+                        replace_existing=True
+                    )
+                    job_ids.append(job_on.id)
+                    logger.info(f"已添加排程 ON: {schedule.name} at {schedule.start_time}")
+            
+            if schedule.end_time:
+                trigger_off = self._create_trigger(schedule, schedule.end_time)
+                if trigger_off:
+                    job_off = self.scheduler.add_job(
+                        self._execute_schedule,
+                        trigger=trigger_off,
+                        args=[schedule.id, False],  # False 表示關閉
+                        id=f"schedule_{schedule.id}_off",
+                        name=f"{schedule.name} (關閉)",
+                        replace_existing=True
+                    )
+                    job_ids.append(job_off.id)
+                    logger.info(f"已添加排程 OFF: {schedule.name} at {schedule.end_time}")
+        else:
+            # 其他類型（interval, cron）的排程使用原有邏輯
+            trigger = self._create_trigger_legacy(schedule)
+            if trigger:
+                job = self.scheduler.add_job(
+                    self._execute_schedule,
+                    trigger=trigger,
+                    args=[schedule.id, None],  # None 表示自動判斷
+                    id=f"schedule_{schedule.id}",
+                    name=schedule.name,
+                    replace_existing=True
+                )
+                job_ids.append(job.id)
+                logger.info(f"已添加排程: {schedule.name} (ID: {schedule.id})")
         
-        if not trigger:
-            logger.warning(f"無法為排程 {schedule.id} 創建觸發器")
-            return
-        
-        # 添加任務
-        job = self.scheduler.add_job(
-            self._execute_schedule,
-            trigger=trigger,
-            args=[schedule.id],
-            id=f"schedule_{schedule.id}",
-            name=schedule.name,
-            replace_existing=True
-        )
-        
-        self._job_map[schedule.id] = job.id
-        logger.info(f"已添加排程: {schedule.name} (ID: {schedule.id})")
+        if job_ids:
+            self._job_map[schedule.id] = job_ids
     
     async def remove_schedule(self, schedule_id: int):
         """移除排程任務"""
         if schedule_id in self._job_map:
-            job_id = self._job_map[schedule_id]
-            self.scheduler.remove_job(job_id)
+            for job_id in self._job_map[schedule_id]:
+                try:
+                    self.scheduler.remove_job(job_id)
+                except Exception as e:
+                    logger.warning(f"移除任務 {job_id} 失敗: {e}")
             del self._job_map[schedule_id]
             logger.info(f"已移除排程 ID: {schedule_id}")
     
-    def _create_trigger(self, schedule: Schedule):
-        """根據排程類型創建觸發器"""
+    def _create_trigger(self, schedule: Schedule, time_str: str):
+        """為指定時間創建觸發器"""
+        if not time_str:
+            return None
+        
+        hour, minute = map(int, time_str.split(':'))
+        
         if schedule.schedule_type == "daily":
-            # 每日固定時間
-            if not schedule.start_time:
-                return None
-            
-            hour, minute = map(int, schedule.start_time.split(':'))
             return CronTrigger(hour=hour, minute=minute)
         
         elif schedule.schedule_type == "weekly":
-            # 每週特定日期和時間
-            if not schedule.start_time or not schedule.days_of_week:
+            if not schedule.days_of_week:
                 return None
-            
-            hour, minute = map(int, schedule.start_time.split(':'))
             days = schedule.days_of_week  # "0,1,2,3,4,5,6"
-            
             return CronTrigger(
                 day_of_week=days,
                 hour=hour,
                 minute=minute
             )
         
-        elif schedule.schedule_type == "cron":
-            # 自訂 Cron 表達式
+        return None
+    
+    def _create_trigger_legacy(self, schedule: Schedule):
+        """創建其他類型的觸發器（保留原有邏輯）"""
+        if schedule.schedule_type == "cron":
             if not schedule.cron_expression:
                 return None
             
-            # 解析 cron 表達式
             parts = schedule.cron_expression.split()
             if len(parts) == 5:
                 minute, hour, day, month, day_of_week = parts
@@ -132,9 +163,7 @@ class SchedulerService:
                 )
         
         elif schedule.schedule_type == "interval":
-            # 間隔執行（需要在 cron_expression 中指定間隔，例如 "interval:minutes=30"）
             if schedule.cron_expression and schedule.cron_expression.startswith("interval:"):
-                # 解析間隔參數
                 params_str = schedule.cron_expression.replace("interval:", "")
                 params = {}
                 for param in params_str.split(','):
@@ -145,9 +174,13 @@ class SchedulerService:
         
         return None
     
-    async def _execute_schedule(self, schedule_id: int):
-        """執行排程任務"""
-        # 創建新的資料庫 session
+    async def _execute_schedule(self, schedule_id: int, should_turn_on: Optional[bool] = None):
+        """執行排程任務
+        
+        Args:
+            schedule_id: 排程 ID
+            should_turn_on: True=開啟, False=關閉, None=自動判斷
+        """
         with self.db_session_factory() as session:
             try:
                 # 查詢排程
@@ -172,14 +205,19 @@ class SchedulerService:
                     logger.info(f"繼電器 {relay.name} 未啟用，跳過排程")
                     return
                 
+                # 如果 should_turn_on 為 None，使用舊的自動判斷邏輯
+                if should_turn_on is None:
+                    should_turn_on = self._auto_determine_state(schedule)
+                
                 # 執行排程動作
-                await self._execute_schedule_action(schedule, relay, session)
+                await self._execute_schedule_action(schedule, relay, session, should_turn_on)
                 
                 # 記錄事件
+                action = "開啟" if should_turn_on else "關閉"
                 event = EventLog(
                     event_type="schedule_run",
                     severity="info",
-                    message=f"排程 '{schedule.name}' 執行成功",
+                    message=f"排程 '{schedule.name}' 執行成功：{action} {relay.name}",
                     related_entity_type="schedule",
                     related_entity_id=schedule.id
                 )
@@ -200,19 +238,9 @@ class SchedulerService:
                 session.add(event)
                 session.commit()
     
-    async def _execute_schedule_action(
-        self,
-        schedule: Schedule,
-        relay: RelayChannel,
-        session: Session
-    ):
-        """執行排程動作"""
-        controller = get_controller()
-        
-        # 判斷應該開啟還是關閉
-        # 簡單邏輯：如果設定了 start_time 和 end_time，在時間範圍內開啟，否則關閉
+    def _auto_determine_state(self, schedule: Schedule) -> bool:
+        """自動判斷應該開啟還是關閉（用於舊邏輯）"""
         now = datetime.now().time()
-        should_turn_on = False
         
         if schedule.start_time and schedule.end_time:
             start = time(*map(int, schedule.start_time.split(':')))
@@ -220,20 +248,23 @@ class SchedulerService:
             
             if start <= end:
                 # 正常時間範圍 (例如 08:00 - 20:00)
-                should_turn_on = start <= now <= end
+                return start <= now <= end
             else:
                 # 跨午夜時間範圍 (例如 20:00 - 08:00)
-                should_turn_on = now >= start or now <= end
-        else:
-            # 沒有結束時間，假設要開啟
-            should_turn_on = True
+                return now >= start or now <= end
         
-        # 溫度控制邏輯
-        if schedule.schedule_type == "temperature_based":
-            # 這裡應該讀取當前溫度並判斷
-            # 簡化版：跳過
-            logger.info("溫度控制排程需要實現")
-            return
+        # 預設開啟
+        return True
+    
+    async def _execute_schedule_action(
+        self,
+        schedule: Schedule,
+        relay: RelayChannel,
+        session: Session,
+        should_turn_on: bool
+    ):
+        """執行排程動作"""
+        controller = get_controller()
         
         # 執行控制
         success = await controller.set_relay(relay.channel, should_turn_on)
@@ -245,10 +276,8 @@ class SchedulerService:
             session.add(relay)
             session.commit()
             
-            logger.info(
-                f"排程 '{schedule.name}' 將繼電器 {relay.name} "
-                f"設為 {'ON' if should_turn_on else 'OFF'}"
-            )
+            action = "開啟" if should_turn_on else "關閉"
+            logger.info(f"排程 '{schedule.name}' 成功{action}繼電器 {relay.name}")
         else:
             logger.error(f"排程 '{schedule.name}' 控制繼電器失敗")
     
