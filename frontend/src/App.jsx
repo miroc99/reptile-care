@@ -1,29 +1,41 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import TankManagement from './pages/TankManagement';
-import TankDetail from './pages/TankDetail';
-import Schedule from './pages/Schedule';
-import ManualControl from './pages/ManualControl';
-import Alerts from './pages/Alerts';
-import DevTools from './pages/DevTools';
+
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const TankDetail = lazy(() => import('./pages/TankDetail'));
+const Schedule = lazy(() => import('./pages/Schedule'));
+const Alerts = lazy(() => import('./pages/Alerts'));
+const Settings = lazy(() => import('./pages/Settings'));
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--ink-3)' }}>
+      載入中…
+    </div>
+  );
+}
 
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/tanks" element={<TankManagement />} />
-          <Route path="/tank/:tankId" element={<TankDetail />} />
-          <Route path="/schedule" element={<Schedule />} />
-          <Route path="/control" element={<ManualControl />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/dev" element={<DevTools />} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="tank/:tankId" element={<TankDetail />} />
+            <Route path="schedule" element={<Schedule />} />
+            <Route path="alerts" element={<Alerts />} />
+            <Route path="settings" element={<Settings />} />
+
+            {/* Legacy redirects */}
+            <Route path="dashboard" element={<Navigate to="/" replace />} />
+            <Route path="tanks" element={<Navigate to="/" replace />} />
+            <Route path="control" element={<Navigate to="/" replace />} />
+            <Route path="dev" element={<Navigate to="/settings" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </Router>
   );
 }

@@ -195,11 +195,6 @@ class SchedulerService:
                     logger.error(f"排程 {schedule_id} 關聯的繼電器不存在")
                     return
                 
-                # 檢查是否被手動覆寫
-                if relay.manual_override:
-                    logger.info(f"繼電器 {relay.name} 處於手動覆寫模式，跳過排程")
-                    return
-                
                 # 檢查是否啟用
                 if not relay.enabled:
                     logger.info(f"繼電器 {relay.name} 未啟用，跳過排程")
@@ -272,6 +267,7 @@ class SchedulerService:
         if success:
             # 更新資料庫
             relay.current_state = should_turn_on
+            relay.manual_override = False
             relay.updated_at = datetime.utcnow()
             session.add(relay)
             session.commit()

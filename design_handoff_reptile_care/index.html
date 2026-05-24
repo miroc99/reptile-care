@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>爬蟲環控系統 · Redesign</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+<link rel="stylesheet" href="src/styles.css"/>
+
+<style>
+  html, body, #root { height: 100%; margin: 0; }
+  body {
+    background:
+      radial-gradient(120% 80% at 20% 0%,  oklch(0.18 0.022 60) 0%, transparent 55%),
+      radial-gradient(120% 80% at 100% 100%, oklch(0.15 0.020 220) 0%, transparent 55%),
+      oklch(0.10 0.010 60);
+    font-family: "Noto Sans TC", "Space Grotesk", sans-serif;
+    color: oklch(0.96 0.005 80);
+  }
+
+  /* Wrap each artboard's content in a dark mat so the rounded corners read */
+  .frame-mat {
+    width: 100%; height: 100%;
+    border-radius: 26px;
+    overflow: hidden;
+    background: oklch(0.13 0.012 60);
+    box-shadow:
+      0 60px 120px -40px rgba(0,0,0,0.55),
+      inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="src/data.jsx"></script>
+<script type="text/babel" src="src/data-more.jsx"></script>
+<script type="text/babel" src="src/data-settings.jsx"></script>
+<script type="text/babel" src="src/atoms.jsx"></script>
+<script type="text/babel" src="src/desktop.jsx"></script>
+<script type="text/babel" src="src/desktop-detail.jsx"></script>
+<script type="text/babel" src="src/desktop-schedule.jsx"></script>
+<script type="text/babel" src="src/desktop-alerts.jsx"></script>
+<script type="text/babel" src="src/desktop-settings.jsx"></script>
+<script type="text/babel" src="src/mobile.jsx"></script>
+<script type="text/babel" src="src/mobile-screens.jsx"></script>
+<script type="text/babel" src="src/mobile-settings.jsx"></script>
+
+<script type="text/babel">
+  function Root() {
+    return (
+      <DesignCanvas
+        title="爬蟲環控系統 · 重新設計"
+        subtitle="深色玻璃風 · 桌面網頁 + iPhone · 點擊飼養缸卡片可進入詳情頁"
+      >
+        <DCSection id="overview" title="儀表板與詳情頁" subtitle="點擊任一飼養缸卡片切換到詳情頁；詳情頁上方 ← 返回">
+          <DCArtboard id="desktop" label="桌面網頁 · 1440 × 900" width={1440} height={900}>
+            <div className="frame-mat">
+              <DesktopApp/>
+            </div>
+          </DCArtboard>
+
+          <DCArtboard id="iphone" label="iPhone · 390 × 844" width={420} height={892}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IOSDevice width={402} height={874} dark={true}>
+                <MobileApp/>
+              </IOSDevice>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="schedule" title="排程" subtitle="跨飼養缸的全局 24h timeline、本週密度、即將執行清單">
+          <DCArtboard id="desktop-schedule" label="桌面 · 排程總覽" width={1440} height={1100}>
+            <div className="frame-mat">
+              <DesktopApp initialRoute={{ name: 'schedule' }}/>
+            </div>
+          </DCArtboard>
+
+          <DCArtboard id="iphone-schedule" label="iPhone · 排程" width={420} height={892}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IOSDevice width={402} height={874} dark={true}>
+                <MobileApp initialRoute={{ name: 'schedule' }}/>
+              </IOSDevice>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="alerts" title="告警中心" subtitle="待處理警報、歷史議錄、觸發時段分佈、來源飼養缸">
+          <DCArtboard id="desktop-alerts" label="桌面 · 告警中心" width={1440} height={1400}>
+            <div className="frame-mat">
+              <DesktopApp initialRoute={{ name: 'alerts' }}/>
+            </div>
+          </DCArtboard>
+
+          <DCArtboard id="iphone-alerts" label="iPhone · 告警" width={420} height={892}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IOSDevice width={402} height={874} dark={true}>
+                <MobileApp initialRoute={{ name: 'alerts' }}/>
+              </IOSDevice>
+            </div>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection id="settings" title="系統設定" subtitle="繼電器通道、感測器原始數據、系統日誌、網路與備份">
+          <DCArtboard id="desktop-settings" label="桌面 · 系統設定" width={1440} height={1100}>
+            <div className="frame-mat">
+              <DesktopApp initialRoute={{ name: 'settings' }}/>
+            </div>
+          </DCArtboard>
+
+          <DCArtboard id="iphone-settings" label="iPhone · 系統設定" width={420} height={892}>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <IOSDevice width={402} height={874} dark={true}>
+                <MobileApp initialRoute={{ name: 'settings' }}/>
+              </IOSDevice>
+            </div>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
+</script>
+</body>
+</html>

@@ -1,530 +1,421 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { ArrowLeft, Thermometer, Droplets, Power, Settings, Activity } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import GlassCard from '../components/ui/GlassCard';
+import Pill from '../components/ui/Pill';
+import Dot from '../components/ui/Dot';
+import Avatar from '../components/ui/Avatar';
+import Icon from '../components/ui/Icon';
+import Toggle from '../components/ui/Toggle';
+import ArcGauge from '../components/ui/ArcGauge';
+import RangeBar from '../components/ui/RangeBar';
+import { Tabs, Tab } from '../components/ui/Tabs';
 
-// 動態獲取 API base URL
-const API_BASE = window.location.origin;
+const TONES = ['amber', 'sage', 'violet', 'sky', 'crimson', 'amber'];
+function tankInitial(name) { return name ? name.charAt(0) : '?'; }
+function tankTone(id) {
+  const n = parseInt(id) || 0;
+  return TONES[n % TONES.length];
+}
 
-const TankDetail = () => {
-  const { tankId } = useParams();
-  const navigate = useNavigate();
+function tempStatus(temp, lo, hi) {
+  if (temp == null) return 'amber';
+  if (temp < lo) return 'sky';
+  if (temp > hi) return 'crimson';
+  return 'sage';
+}
+function humStatus(hum, lo, hi) {
+  if (hum == null) return 'amber';
+  if (hum < lo) return 'amber';
+  if (hum > hi) return 'sky';
+  return 'sage';
+}
+function healthOf(temp, hum, tLo, tHi, hLo, hHi) {
+  const ts = tempStatus(temp, tLo, tHi);
+  const hs = humStatus(hum, hLo, hHi);
+  if (ts === 'crimson') return { tone: 'crimson', label: '需注意' };
+  if (ts === 'sage' && hs === 'sage') return { tone: 'sage', label: '一切正常' };
+  return { tone: 'amber', label: '可微調' };
+}
 
-  const [tank, setTank] = useState(null);
-  const [currentTemp, setCurrentTemp] = useState(null);
-  const [currentHumidity, setCurrentHumidity] = useState(null);
-  const [relayChannels, setRelayChannels] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [tempHistory, setTempHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+function deviceIcon(type) {
+  const m = { lighting: 'lightbulb', heating: 'sun', humidifier: 'mist', fan: 'fan', relay: 'pulse' };
+  return m[type] || 'pulse';
+}
+function deviceTone(type) {
+  const m = { lighting: 'violet', heating: 'amber', humidifier: 'sky', fan: 'sage', relay: 'amber' };
+  return m[type] || 'amber';
+}
 
-  // 載入飼養缸基本資料
-  const loadTankData = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/tanks/${tankId}`);
-      if (!response.ok) {
-        throw new Error('飼養缸不存在');
-      }
-      const data = await response.json();
-      setTank(data);
-    } catch (error) {
-      console.error('載入飼養缸資料失敗:', error);
-      alert('載入飼養缸資料失敗，請返回重試');
-      navigate('/dashboard');
-    }
-  };
-
-  // 載入當前溫濕度資料
-  const loadCurrentTemperature = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/temperature/latest/${tankId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentTemp(data.temperature);
-        setCurrentHumidity(data.humidity);
-      }
-    } catch (error) {
-      console.error('載入溫度資料失敗:', error);
-    }
-  };
-
-  // 載入繼電器通道資料
-  const loadRelayChannels = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/relays`);
-      if (response.ok) {
-        const data = await response.json();
-        // 只顯示屬於這個飼養缸的繼電器
-        const tankRelays = data.filter(relay => relay.tank_id === parseInt(tankId));
-        setRelayChannels(tankRelays);
-      }
-    } catch (error) {
-      console.error('載入繼電器資料失敗:', error);
-    }
-  };
-
-  // 載入排程資料
-  const loadSchedules = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/schedules`);
-      if (response.ok) {
-        const data = await response.json();
-        setSchedules(data);
-      }
-    } catch (error) {
-      console.error('載入排程資料失敗:', error);
-    }
-  };
-
-  // 載入溫度歷史記錄
-  const loadTemperatureHistory = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/temperature/history/${tankId}?hours=24`);
-      if (response.ok) {
-        const data = await response.json();
-        // 轉換資料格式供圖表使用
-        const formattedData = data.map(item => ({
-          time: new Date(item.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' }),
-          temp: item.temperature,
-          humidity: item.humidity || 0
-        }));
-        // 只取最近12筆資料以保持圖表清晰
-        setTempHistory(formattedData.slice(-12));
-      }
-    } catch (error) {
-      console.error('載入溫度歷史失敗:', error);
-    }
-  };
-
-  // 初始載入
-  useEffect(() => {
-    const loadAll = async () => {
-      setLoading(true);
-      await loadTankData();
-      await Promise.all([
-        loadCurrentTemperature(),
-        loadRelayChannels(),
-        loadSchedules(),
-        loadTemperatureHistory()
-      ]);
-      setLoading(false);
-    };
-    loadAll();
-
-    // 每 5 秒更新溫度和繼電器狀態
-    const interval = setInterval(() => {
-      loadCurrentTemperature();
-      loadRelayChannels();
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, [tankId]);
-
-  // 切換繼電器狀態
-  const handleRelayToggle = async (relay) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/${relay.id}/control`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: !relay.current_state,
-          manual: true
-        })
-      });
-
-      if (response.ok) {
-        // 立即更新本地狀態以獲得即時反饋
-        await loadRelayChannels();
-      } else {
-        alert('控制繼電器失敗');
-      }
-    } catch (error) {
-      console.error('控制繼電器失敗:', error);
-      alert('控制繼電器失敗，請檢查網路連接');
-    }
-  };
-
-  // 取消手動覆寫，回到自動模式
-  const handleClearOverride = async (relay) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/${relay.id}/clear-override`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        await loadRelayChannels();
-        alert(`${relay.name} 已回到自動排程控制模式`);
-      } else {
-        alert('操作失敗');
-      }
-    } catch (error) {
-      console.error('清除手動覆寫失敗:', error);
-      alert('操作失敗，請檢查網路連接');
-    }
-  };
-
-  // 獲取設備相關的排程
-  const getRelaySchedules = (relayId) => {
-    return schedules.filter(s => s.relay_channel_id === relayId && s.active);
-  };
-
-  // 全部設為自動排程模式
-  const handleClearAllOverrides = async () => {
-    if (!confirm('確定要將此飼養缸的所有設備設為自動排程模式嗎？')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/control/clear-all-overrides`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await loadRelayChannels();
-        alert(`成功：${result.message}`);
-      } else {
-        alert('操作失敗');
-      }
-    } catch (error) {
-      console.error('清除手動覆寫失敗:', error);
-      alert('操作失敗，請檢查網路連接');
-    }
-  };
-
-  // 同步排程狀態
-  const handleSyncSchedules = async () => {
-    if (!confirm('確定要立即同步所有排程狀態嗎？這將根據當前時間和排程規則更新所有設備。')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/control/sync-schedules`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await loadRelayChannels();
-        alert(`成功：${result.message}\n活躍排程: ${result.active_schedules} 個`);
-      } else {
-        alert('同步失敗');
-      }
-    } catch (error) {
-      console.error('同步排程失敗:', error);
-      alert('同步失敗，請檢查網路連接');
-    }
-  };
-
-  const getTempStatus = () => {
-    if (!tank || currentTemp === null) return { text: '無資料', color: 'text-gray-600', bg: 'bg-gray-100' };
-    if (currentTemp < tank.target_temp_min) return { text: '偏低', color: 'text-blue-600', bg: 'bg-blue-100' };
-    if (currentTemp > tank.target_temp_max) return { text: '偏高', color: 'text-red-600', bg: 'bg-red-100' };
-    return { text: '正常', color: 'text-green-600', bg: 'bg-green-100' };
-  };
-
-  // 載入中狀態
-  if (loading || !tank) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <Activity className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">載入中...</p>
-        </div>
-      </div>
-    );
+function ControlPanel({ relays, onToggle }) {
+  if (!relays.length) {
+    return <div style={{ color: 'var(--ink-3)', textAlign: 'center', padding: '32px 0' }}>此飼養缸無設備</div>;
   }
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+      {relays.map(relay => {
+        const tone = deviceTone(relay.device_type);
+        const icon = deviceIcon(relay.device_type);
+        const on = relay.current_state;
+        return (
+          <GlassCard key={relay.id} style={{ padding: 20 }}>
+            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: on ? `color-mix(in oklch, var(--${tone}) 20%, transparent)` : 'rgba(255,255,255,0.04)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: on ? `var(--${tone})` : 'var(--ink-4)',
+                transition: 'background 200ms, color 200ms',
+              }}>
+                <Icon name={icon} size={20} />
+              </div>
+              <Toggle
+                on={on}
+                tone={tone}
+                onChange={() => onToggle(relay.id, !on)}
+              />
+            </div>
+            <div className="t-display" style={{ fontSize: 14, color: 'var(--ink-1)', marginBottom: 4 }}>
+              {relay.label || relay.name || `CH${relay.channel_number}`}
+            </div>
+            <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+              {relay.description || relay.device_type || '繼電器'}
+            </div>
+          </GlassCard>
+        );
+      })}
+    </div>
+  );
+}
 
-  const tempStatus = getTempStatus();
+function SchedulePanel({ schedules, relays }) {
+  const hours = Array.from({ length: 7 }, (_, i) => i * 4);
+  if (!schedules.length) {
+    return <div style={{ color: 'var(--ink-3)', textAlign: 'center', padding: '32px 0' }}>此飼養缸無排程</div>;
+  }
+  const now = new Date();
+  const nowFrac = (now.getHours() * 60 + now.getMinutes()) / 1440;
 
   return (
-    <div className="space-y-6">
-      {/* 返回按鈕和標題 */}
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-        >
-          <ArrowLeft className="w-6 h-6 text-gray-600" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-gray-900">{tank.name}</h1>
-          {tank.description && (
-            <p className="text-gray-600 mt-1">{tank.description}</p>
-          )}
-        </div>
-        <button
-          onClick={() => navigate('/tanks')}
-          className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-        >
-          <Settings className="w-5 h-5" />
-          <span>編輯設定</span>
-        </button>
+    <GlassCard style={{ padding: 22 }}>
+      {/* Hour ruler */}
+      <div className="row" style={{ marginBottom: 8, paddingLeft: 130, gap: 0, position: 'relative' }}>
+        {hours.map(h => (
+          <div key={h} style={{ flex: h === 0 ? 0 : 1, fontSize: 10, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+            {String(h).padStart(2, '0')}
+          </div>
+        ))}
+        <div style={{ fontSize: 10, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>24</div>
       </div>
 
-      {/* 主要監控卡片 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 溫度卡片 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">溫度監控</h3>
-            <Thermometer className="w-6 h-6 text-blue-600" />
-          </div>
-          <div className="text-center">
-            <div className="text-5xl font-bold text-gray-900 mb-2">
-              {currentTemp !== null ? currentTemp.toFixed(1) : '--'}°C
-            </div>
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${tempStatus.bg} ${tempStatus.color}`}>
-              {tempStatus.text}
-            </span>
-            <div className="mt-4 text-sm text-gray-600">
-              目標: {tank.target_temp_min}°C - {tank.target_temp_max}°C
-            </div>
-          </div>
-        </div>
+      <div className="col" style={{ gap: 8 }}>
+        {schedules.map(s => {
+          const relay = relays.find(r => r.id === s.relay_channel_id);
+          const tone = deviceTone(relay?.device_type);
+          const [sh, sm] = (s.start_time || '00:00').split(':').map(Number);
+          const [eh, em] = (s.end_time || '23:59').split(':').map(Number);
+          const startF = (sh * 60 + (sm || 0)) / 1440;
+          const endF = (eh * 60 + (em || 0)) / 1440;
+          const label = relay?.label || relay?.name || s.name || '設備';
 
-        {/* 濕度卡片 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">濕度監控</h3>
-            <Droplets className="w-6 h-6 text-cyan-600" />
-          </div>
-          <div className="text-center">
-            <div className="text-5xl font-bold text-gray-900 mb-2">
-              {currentHumidity !== null ? currentHumidity.toFixed(0) : '--'}%
-            </div>
-            <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-cyan-100 text-cyan-600">
-              {tank.target_humidity_min && tank.target_humidity_max ? '已設定範圍' : '未設定範圍'}
-            </span>
-            <div className="mt-4 text-sm text-gray-600">
-              {tank.target_humidity_min && tank.target_humidity_max 
-                ? `目標: ${tank.target_humidity_min}% - ${tank.target_humidity_max}%`
-                : '建議: 50% - 70%'
-              }
-            </div>
-          </div>
-        </div>
-
-        {/* 能耗卡片 */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">設備統計</h3>
-            <Power className="w-6 h-6 text-purple-600" />
-          </div>
-          <div className="text-center">
-            <div className="text-5xl font-bold text-gray-900 mb-2">
-              {relayChannels.filter(r => r.current_state && r.enabled).length}
-            </div>
-            <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-purple-100 text-purple-600">
-              運行中設備
-            </span>
-            <div className="mt-4 text-sm text-gray-600">
-              總共 {relayChannels.length} 個設備
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 趋势图表 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">溫度趨勢</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={tempHistory}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis domain={[20, 35]} />
-              <Tooltip />
-              <Line 
-                type="monotone" 
-                dataKey="temp" 
-                stroke="#3b82f6" 
-                strokeWidth={2}
-                name="溫度 (°C)"
-                dot={{ fill: '#3b82f6' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">濕度趨勢</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={tempHistory}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis domain={[40, 90]} />
-              <Tooltip />
-              <Line 
-                type="monotone" 
-                dataKey="humidity" 
-                stroke="#06b6d4" 
-                strokeWidth={2}
-                name="濕度 (%)"
-                dot={{ fill: '#06b6d4' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* 设备控制面板 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">設備控制</h3>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleClearAllOverrides}
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1"
-            >
-              <span>⏰</span>
-              <span>全部自動</span>
-            </button>
-            <button
-              onClick={handleSyncSchedules}
-              className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-1"
-            >
-              <span>🔄</span>
-              <span>同步排程</span>
-            </button>
-          </div>
-        </div>
-        {relayChannels.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <Power className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-            <p>此飼養缸尚未關聯任何設備</p>
-            <p className="text-sm mt-2">請到「飼養缸管理」頁面編輯設定</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {relayChannels.map((relay) => {
-              const isOn = relay.current_state;
-              const isEnabled = relay.enabled;
-              const isManual = relay.manual_override;
-              const relaySchedules = getRelaySchedules(relay.id);
-              const hasSchedule = relaySchedules.length > 0;
-              
-              return (
-                <div key={relay.id} className={`p-4 border-2 rounded-lg transition-all ${
-                  !isEnabled 
-                    ? 'border-gray-300 bg-gray-100 opacity-60' 
-                    : isOn 
-                      ? 'border-green-500 bg-green-50' 
-                      : 'border-gray-200 bg-gray-50'
-                }`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-gray-900">{relay.name}</h4>
-                    <div className={`w-3 h-3 rounded-full ${
-                      !isEnabled 
-                        ? 'bg-gray-400' 
-                        : isOn 
-                          ? 'bg-green-500 animate-pulse' 
-                          : 'bg-gray-300'
-                    }`} />
-                  </div>
-                  
-                  <div className="text-xs text-gray-600 mb-2">
-                    通道: CH{relay.channel} · {relay.device_type}
-                  </div>
-                  
-                  {relay.description && (
-                    <div className="text-xs text-gray-500 mb-2">
-                      {relay.description}
-                    </div>
-                  )}
-                  
-                  {/* 控制模式標示 */}
-                  <div className="mb-3">
-                    {isManual ? (
-                      <div className="flex items-center text-xs">
-                        <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded font-semibold">
-                          🔧 手動模式
-                        </span>
-                      </div>
-                    ) : hasSchedule ? (
-                      <div className="flex items-center text-xs">
-                        <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded font-semibold">
-                          ⏰ 排程控制
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center text-xs">
-                        <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded">
-                          無排程
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 排程資訊 */}
-                  {hasSchedule && (
-                    <div className="text-xs text-gray-600 mb-2 space-y-1">
-                      {relaySchedules.map(schedule => (
-                        <div key={schedule.id} className="flex items-center">
-                          <span className="text-blue-600">📅</span>
-                          <span className="ml-1">{schedule.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* 控制按鈕 */}
-                  <div className="space-y-2">
-                    <button
-                      onClick={() => handleRelayToggle(relay)}
-                      disabled={!isEnabled}
-                      className={`w-full py-2 rounded-lg font-medium transition-colors ${
-                        !isEnabled
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : isOn 
-                            ? 'bg-red-600 hover:bg-red-700 text-white' 
-                            : 'bg-green-600 hover:bg-green-700 text-white'
-                      }`}
-                    >
-                      {!isEnabled ? '已停用' : isOn ? '關閉' : '開啟'}
-                    </button>
-                    
-                    {/* 回到自動模式按鈕 */}
-                    {isManual && isEnabled && (
-                      <button
-                        onClick={() => handleClearOverride(relay)}
-                        className="w-full py-1.5 text-xs rounded-lg font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-                      >
-                        ⏰ 回到自動模式
-                      </button>
-                    )}
-                  </div>
+          return (
+            <div key={s.id} className="row gap-3">
+              <div style={{ width: 120, flexShrink: 0, fontSize: 13, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {label}
+              </div>
+              <div style={{ flex: 1, position: 'relative' }}>
+                <div className="sched-row">
+                  <div
+                    className="sched-seg"
+                    style={{
+                      left: `${startF * 100}%`,
+                      width: `${Math.max((endF - startF) * 100, 1)}%`,
+                      background: `var(--${tone})`,
+                    }}
+                  />
+                  {/* Now indicator */}
+                  <div style={{
+                    position: 'absolute', top: 0, bottom: 0,
+                    left: `${nowFrac * 100}%`,
+                    width: 1, background: 'rgba(255,255,255,0.6)',
+                    pointerEvents: 'none',
+                  }} />
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
+            </div>
+          );
+        })}
       </div>
+    </GlassCard>
+  );
+}
 
-      {/* 最近事件 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">最近事件</h3>
-        <div className="space-y-3">
-          {[
-            { time: '14:32', event: '溫度達到目標範圍', type: 'success' },
-            { time: '13:15', event: '加熱墊已開啟', type: 'info' },
-            { time: '12:00', event: 'UVB燈已開啟', type: 'info' },
-            { time: '08:00', event: '照明系統已開啟（自動排程）', type: 'info' }
-          ].map((log, index) => (
-            <div key={index} className="flex items-center justify-between py-2 border-b last:border-b-0">
-              <div className="flex items-center space-x-3">
-                <div className={`w-2 h-2 rounded-full ${
-                  log.type === 'success' ? 'bg-green-500' : 'bg-blue-500'
-                }`} />
-                <span className="text-sm font-medium text-gray-500">{log.time}</span>
-                <span className="text-sm text-gray-900">{log.event}</span>
+function AlertsPanel({ tank }) {
+  const tLo = tank.target_temp_min ?? 24;
+  const tHi = tank.target_temp_max ?? 32;
+  const hLo = tank.target_hum_min ?? 40;
+  const hHi = tank.target_hum_max ?? 70;
+
+  const thresholds = [
+    { icon: 'thermometer', label: '溫度下限', value: tLo, min: 15, max: 40, tone: 'sky', unit: '°C' },
+    { icon: 'thermometer', label: '溫度上限', value: tHi, min: 15, max: 40, tone: 'crimson', unit: '°C' },
+    { icon: 'drop', label: '濕度下限', value: hLo, min: 0, max: 100, tone: 'amber', unit: '%' },
+    { icon: 'drop', label: '濕度上限', value: hHi, min: 0, max: 100, tone: 'sky', unit: '%' },
+  ];
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 14 }}>
+      <GlassCard style={{ padding: 22 }}>
+        <div className="t-label" style={{ marginBottom: 16 }}>溫濕度門檻</div>
+        <div className="col" style={{ gap: 16 }}>
+          {thresholds.map((t, i) => (
+            <div key={i} className="row gap-3">
+              <div style={{
+                width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                background: `color-mix(in oklch, var(--${t.tone}) 12%, transparent)`,
+                color: `var(--${t.tone})`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Icon name={t.icon} size={14} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div className="row" style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>{t.label}</span>
+                  <span className="t-num" style={{ fontSize: 14, color: `var(--${t.tone})` }}>
+                    {t.value}{t.unit}
+                  </span>
+                </div>
+                <RangeBar value={t.value} min={t.min} max={t.max} lo={t.value - 1} hi={t.value + 1} tone={t.tone} />
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </GlassCard>
+      <GlassCard style={{ padding: 22 }}>
+        <div className="t-label" style={{ marginBottom: 16 }}>通知管道</div>
+        <div className="col" style={{ gap: 14 }}>
+          {[
+            { label: '推送通知', status: '未設定', on: false },
+            { label: '電子郵件', status: '未設定', on: false },
+            { label: 'LINE 通知', status: '未設定', on: false },
+          ].map((ch, i) => (
+            <div key={i} className="row" style={{ justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--ink-2)' }}>{ch.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>{ch.status}</div>
+              </div>
+              <Toggle on={ch.on} />
+            </div>
+          ))}
+        </div>
+      </GlassCard>
     </div>
   );
-};
+}
 
-export default TankDetail;
+function TwoLineChart({ history, tLo, tHi }) {
+  if (!history?.length) {
+    return (
+      <div style={{ height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
+        暫無歷史資料
+      </div>
+    );
+  }
+  const data = history.map(h => ({
+    time: new Date(h.timestamp).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    temp: h.temperature != null ? +h.temperature.toFixed(1) : null,
+    hum: h.humidity != null ? +h.humidity.toFixed(0) : null,
+  }));
+
+  return (
+    <ResponsiveContainer width="100%" height={200}>
+      <LineChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+        <CartesianGrid stroke="rgba(255,255,255,0.04)" />
+        <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }} interval="preserveStartEnd" />
+        <YAxis tick={{ fontSize: 10, fill: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }} />
+        <Tooltip
+          contentStyle={{ background: 'var(--bg-1)', border: '1px solid var(--glass-border)', borderRadius: 10, fontSize: 12 }}
+          labelStyle={{ color: 'var(--ink-3)' }}
+        />
+        {tLo && <ReferenceLine y={tLo} stroke="var(--sky)" strokeDasharray="3 3" strokeOpacity={0.4} />}
+        {tHi && <ReferenceLine y={tHi} stroke="var(--crimson)" strokeDasharray="3 3" strokeOpacity={0.4} />}
+        <Line type="monotone" dataKey="temp" stroke="var(--amber)" strokeWidth={1.5} dot={false} name="溫度°C" />
+        <Line type="monotone" dataKey="hum" stroke="var(--sky)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" name="濕度%" />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+export default function TankDetail() {
+  const { tankId } = useParams();
+  const navigate = useNavigate();
+  const [tank, setTank] = useState(null);
+  const [temp, setTemp] = useState(null);
+  const [hum, setHum] = useState(null);
+  const [relays, setRelays] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [tab, setTab] = useState('control');
+  const [loading, setLoading] = useState(true);
+
+  const loadLatest = useCallback(async () => {
+    try {
+      const d = await fetch(`/api/temperature/latest/${tankId}`).then(r => r.json());
+      setTemp(d?.temperature ?? null);
+      setHum(d?.humidity ?? null);
+    } catch {}
+  }, [tankId]);
+
+  const loadRelays = useCallback(async () => {
+    try {
+      const all = await fetch('/api/relays').then(r => r.json());
+      setRelays(all.filter(r => String(r.tank_id) === String(tankId)));
+    } catch {}
+  }, [tankId]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      try {
+        const [td] = await Promise.all([
+          fetch(`/api/tanks/${tankId}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+          loadLatest(),
+          loadRelays(),
+          fetch(`/api/schedules`).then(r => r.json()).then(d => {
+            setSchedules(d);
+          }).catch(() => {}),
+          fetch(`/api/temperature/history/${tankId}?hours=24`).then(r => r.json()).then(setHistory).catch(() => {}),
+        ]);
+        setTank(td);
+      } catch {
+        navigate('/');
+      }
+      setLoading(false);
+    };
+    init();
+    const t = setInterval(() => { loadLatest(); loadRelays(); }, 5000);
+    return () => clearInterval(t);
+  }, [tankId, loadLatest, loadRelays, navigate]);
+
+  const handleToggle = async (relayId, newState) => {
+    setRelays(prev => prev.map(r => r.id === relayId ? { ...r, current_state: newState } : r));
+    try {
+      await fetch(`/api/relays/${relayId}/control`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: newState ? 'on' : 'off' }),
+      });
+    } catch {
+      await loadRelays();
+    }
+  };
+
+  if (loading || !tank) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--ink-3)' }}>
+        載入中…
+      </div>
+    );
+  }
+
+  const tLo = tank.target_temp_min ?? 24;
+  const tHi = tank.target_temp_max ?? 32;
+  const hLo = tank.target_hum_min ?? 40;
+  const hHi = tank.target_hum_max ?? 70;
+  const ts = tempStatus(temp, tLo, tHi);
+  const hs = humStatus(hum, hLo, hHi);
+  const health = healthOf(temp, hum, tLo, tHi, hLo, hHi);
+  const tone = tankTone(tankId);
+
+  const tankSchedules = schedules.filter(s =>
+    relays.some(r => r.id === s.relay_channel_id)
+  );
+
+  return (
+    <div className="col gap-5">
+      {/* Hero */}
+      <GlassCard style={{ padding: 28, display: 'flex', gap: 28, alignItems: 'center' }}>
+        <Avatar initial={tankInitial(tank.name)} tone={tone} size={88} />
+        <div className="col" style={{ flex: 1, gap: 8 }}>
+          <div className="row gap-3">
+            <div className="t-display" style={{ fontSize: 26 }}>{tank.name}</div>
+            <Pill tone={health.tone}><Dot tone={health.tone} />{health.label}</Pill>
+          </div>
+          {tank.description && (
+            <div style={{ color: 'var(--ink-2)', fontSize: 14 }}>{tank.description}</div>
+          )}
+          <div className="t-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+            目標 {tLo}–{tHi}°C · 濕度 {hLo}–{hHi}%
+          </div>
+        </div>
+        <div className="row gap-2">
+          <button className="iconbtn" title="設定"><Icon name="settings" size={16} /></button>
+          <button className="iconbtn" title="餵食紀錄"><Icon name="feed" size={16} /></button>
+        </div>
+      </GlassCard>
+
+      {/* Gauges + Chart */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 16 }}>
+        {/* Temp gauge */}
+        <GlassCard style={{ padding: 22, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <ArcGauge
+            value={temp ?? tLo}
+            min={15} max={45}
+            lo={tLo} hi={tHi}
+            color={`var(--${ts})`}
+            size={200}
+            label="溫度" unit="°C"
+            sublabel={`目標 ${tLo}–${tHi}°C`}
+          />
+          <div style={{ width: '100%' }}>
+            <RangeBar value={temp ?? tLo} min={15} max={45} lo={tLo} hi={tHi} tone={ts} />
+          </div>
+        </GlassCard>
+
+        {/* Humidity gauge */}
+        <GlassCard style={{ padding: 22, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <ArcGauge
+            value={hum ?? hLo}
+            min={10} max={100}
+            lo={hLo} hi={hHi}
+            color={`var(--${hs})`}
+            size={200}
+            label="濕度" unit="%"
+            sublabel={`目標 ${hLo}–${hHi}%`}
+          />
+          <div style={{ width: '100%' }}>
+            <RangeBar value={hum ?? hLo} min={10} max={100} lo={hLo} hi={hHi} tone={hs} />
+          </div>
+        </GlassCard>
+
+        {/* 24h chart */}
+        <GlassCard style={{ padding: 22 }}>
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+            <div className="t-display" style={{ fontSize: 15 }}>24 小時走勢</div>
+            <div className="row gap-3">
+              <span className="t-mono" style={{ fontSize: 10, color: 'var(--amber)' }}>● 溫度</span>
+              <span className="t-mono" style={{ fontSize: 10, color: 'var(--sky)' }}>● 濕度</span>
+            </div>
+          </div>
+          <TwoLineChart history={history} tLo={tLo} tHi={tHi} />
+        </GlassCard>
+      </div>
+
+      {/* Tabs */}
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <Tabs>
+          <Tab active={tab === 'control'} onClick={() => setTab('control')}>手動控制</Tab>
+          <Tab active={tab === 'schedule'} onClick={() => setTab('schedule')}>排程</Tab>
+          <Tab active={tab === 'alerts'} onClick={() => setTab('alerts')}>告警設定</Tab>
+        </Tabs>
+        {tab === 'control' && (
+          <Pill tone="amber">覆寫排程有效</Pill>
+        )}
+      </div>
+
+      {tab === 'control' && <ControlPanel relays={relays} onToggle={handleToggle} />}
+      {tab === 'schedule' && <SchedulePanel schedules={tankSchedules} relays={relays} />}
+      {tab === 'alerts' && <AlertsPanel tank={tank} />}
+    </div>
+  );
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Power, Lightbulb, Zap, Wind, AlertCircle, ChevronDown, Activity } from 'lucide-react';
+import { Power, Lightbulb, Zap, Wind, ChevronDown, Activity } from 'lucide-react';
 
 // 動態獲取 API base URL
 const API_BASE = window.location.origin;
@@ -68,8 +68,7 @@ const ManualControl = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          state: !channel.current_state,
-          manual: true
+          state: !channel.current_state
         })
       });
 
@@ -81,25 +80,6 @@ const ManualControl = () => {
     } catch (error) {
       console.error('控制繼電器失敗:', error);
       alert('控制失敗，請檢查網路連接');
-    }
-  };
-
-  // 取消手動覆寫
-  const handleClearOverride = async (channel) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/${channel.id}/clear-override`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        await loadRelayChannels();
-        alert(`${channel.name} 已回到自動排程控制模式`);
-      } else {
-        alert('操作失敗');
-      }
-    } catch (error) {
-      console.error('清除手動覆寫失敗:', error);
-      alert('操作失敗，請檢查網路連接');
     }
   };
 
@@ -131,54 +111,6 @@ const ManualControl = () => {
       if (channel.current_state) {
         await handleToggle(channel);
       }
-    }
-  };
-
-  // 全部設為自動排程模式
-  const handleClearAllOverrides = async () => {
-    if (!confirm('確定要將所有設備設為自動排程模式嗎？')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/control/clear-all-overrides`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await loadRelayChannels();
-        alert(`成功：${result.message}`);
-      } else {
-        alert('操作失敗');
-      }
-    } catch (error) {
-      console.error('清除手動覆寫失敗:', error);
-      alert('操作失敗，請檢查網路連接');
-    }
-  };
-
-  // 同步排程狀態
-  const handleSyncSchedules = async () => {
-    if (!confirm('確定要立即同步所有排程狀態嗎？這將根據當前時間和排程規則更新所有設備。')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE}/api/relays/control/sync-schedules`, {
-        method: 'POST'
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        await loadRelayChannels();
-        alert(`成功：${result.message}\n活躍排程: ${result.active_schedules} 個`);
-      } else {
-        alert('同步失敗');
-      }
-    } catch (error) {
-      console.error('同步排程失敗:', error);
-      alert('同步失敗，請檢查網路連接');
     }
   };
 
@@ -281,20 +213,6 @@ const ManualControl = () => {
           >
             全部關閉
           </button>
-          <button
-            onClick={handleClearAllOverrides}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-1"
-          >
-            <span>⏰</span>
-            <span>全部設為自動</span>
-          </button>
-          <button
-            onClick={handleSyncSchedules}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-1"
-          >
-            <span>🔄</span>
-            <span>同步排程狀態</span>
-          </button>
         </div>
       </div>
 
@@ -348,17 +266,10 @@ const ManualControl = () => {
         </div>
       )}
 
-      {/* 警告訊息 */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-        <div className="flex items-start space-x-3">
-          <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-          <div>
-            <h3 className="text-sm font-medium text-amber-800">手動控制模式</h3>
-            <p className="text-sm text-amber-700 mt-1">
-              手動控制的設備將設置為覆寫模式，自動排程將不會影響這些設備。
-            </p>
-          </div>
-        </div>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <p className="text-sm text-blue-800">
+          手動操作後，設備狀態會維持到下一次排程事件執行時再由排程接管。
+        </p>
       </div>
 
       {/* 設備控制卡片 */}
@@ -378,7 +289,6 @@ const ManualControl = () => {
             const Icon = getDeviceIcon(channel.device_type);
             const colors = getDeviceColor(channel.device_type);
             const isOn = channel.current_state;
-            const isManual = channel.manual_override;
             const relaySchedules = getRelaySchedules(channel.id);
             const hasSchedule = relaySchedules.length > 0;
 
@@ -400,15 +310,10 @@ const ManualControl = () => {
                         {isOn ? '運行中' : '已關閉'}
                       </span>
                     </span>
-                    
-                    {/* 控制模式標示 */}
-                    {isManual ? (
-                      <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded font-semibold">
-                        🔧 手動
-                      </span>
-                    ) : hasSchedule ? (
+
+                    {hasSchedule ? (
                       <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded font-semibold">
-                        ⏰ 自動
+                        ⏰ 排程
                       </span>
                     ) : (
                       <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded">
@@ -437,16 +342,6 @@ const ManualControl = () => {
                     <Power className="w-5 h-5" />
                     <span>{isOn ? '關閉' : '開啟'}</span>
                   </button>
-                  
-                  {/* 回到自動模式按鈕 */}
-                  {isManual && (
-                    <button
-                      onClick={() => handleClearOverride(channel)}
-                      className="w-full py-2 text-sm rounded-lg font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-                    >
-                      ⏰ 回到自動模式
-                    </button>
-                  )}
                 </div>
               </div>
             );

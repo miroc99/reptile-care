@@ -1,370 +1,426 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Thermometer, Lightbulb, Zap, Activity, ChevronRight, AlertTriangle } from 'lucide-react';
+import GlassCard from '../components/ui/GlassCard';
+import Pill from '../components/ui/Pill';
+import Dot from '../components/ui/Dot';
+import Avatar from '../components/ui/Avatar';
+import Icon from '../components/ui/Icon';
+import Sparkline from '../components/ui/Sparkline';
+import RangeBar from '../components/ui/RangeBar';
+import KpiCard from '../components/ui/KpiCard';
 
-// 動態獲取 API base URL
-const API_BASE = window.location.origin;
+const TONES = ['amber', 'sage', 'violet', 'sky', 'crimson', 'amber'];
 
-const Dashboard = () => {
+function tankTone(i) { return TONES[i % TONES.length]; }
+function tankInitial(name) { return name ? name.charAt(0) : '?'; }
+
+function tempStatus(temp, lo, hi) {
+  if (temp == null) return 'amber';
+  if (temp < lo) return 'sky';
+  if (temp > hi) return 'crimson';
+  return 'sage';
+}
+function humStatus(hum, lo, hi) {
+  if (hum == null) return 'amber';
+  if (hum < lo) return 'amber';
+  if (hum > hi) return 'sky';
+  return 'sage';
+}
+function tankHealth(temp, hum, tLo, tHi, hLo, hHi) {
+  const ts = tempStatus(temp, tLo, tHi);
+  const hs = humStatus(hum, hLo, hHi);
+  if (ts === 'crimson') return { tone: 'crimson', label: '需注意' };
+  if (ts === 'sage' && hs === 'sage') return { tone: 'sage', label: '一切正常' };
+  return { tone: 'amber', label: '可微調' };
+}
+
+function DeviceIcon({ type }) {
+  const iconMap = { lighting: 'lightbulb', heating: 'sun', humidifier: 'mist', fan: 'fan' };
+  const toneMap = { lighting: 'violet', heating: 'amber', humidifier: 'sky', fan: 'sage' };
+  const icon = iconMap[type] || 'pulse';
+  const tone = toneMap[type] || 'amber';
+  return (
+    <div style={{
+      width: 30, height: 30, borderRadius: 8,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: `color-mix(in oklch, var(--${tone}) 12%, transparent)`,
+      color: `var(--${tone})`,
+    }}>
+      <Icon name={icon} size={16} />
+    </div>
+  );
+}
+
+function TankTile({ tank, relays, index, onClick }) {
+  const temp = tank.currentTemp;
+  const hum = tank.humidity;
+  const lo = tank.target_temp_min ?? 24;
+  const hi = tank.target_temp_max ?? 32;
+  const hLo = tank.target_hum_min ?? 40;
+  const hHi = tank.target_hum_max ?? 70;
+  const ts = tempStatus(temp, lo, hi);
+  const hs = humStatus(hum, hLo, hHi);
+  const health = tankHealth(temp, hum, lo, hi, hLo, hHi);
+  const tone = tankTone(index);
+  const tankRelays = relays.filter(r => r.tank_id === tank.id && r.enabled);
+  const activeRelays = tankRelays.filter(r => r.current_state);
+
+  return (
+    <GlassCard
+      className="tank-tile"
+      style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}
+      onClick={onClick}
+    >
+      {/* Header */}
+      <div className="row gap-3" style={{ justifyContent: 'space-between' }}>
+        <div className="row gap-3">
+          <Avatar initial={tankInitial(tank.name)} tone={tone} size={44} />
+          <div>
+            <div className="t-display" style={{ fontSize: 15, color: 'var(--ink-1)' }}>{tank.name}</div>
+            {tank.description && (
+              <div style={{ fontSize: 12, color: 'var(--ink-4)', marginTop: 2 }}>{tank.description}</div>
+            )}
+          </div>
+        </div>
+        <Pill tone={health.tone}>
+          <Dot tone={health.tone} />
+          {health.label}
+        </Pill>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--glass-border)' }} />
+
+      {/* Temp + Humidity */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        {/* Temperature */}
+        <div className="col gap-2">
+          <div className="row gap-2">
+            <Icon name="thermometer" size={14} style={{ color: `var(--${ts})` }} />
+            <span className="t-label">溫度</span>
+          </div>
+          <div className="kpi-value" style={{ fontSize: 28, color: `var(--${ts})` }}>
+            {temp != null ? temp.toFixed(1) : '--'}
+            <span style={{ fontSize: 14, color: 'var(--ink-3)', marginLeft: 3 }}>°C</span>
+          </div>
+          <div style={{ marginTop: 2 }}>
+            {temp != null && (
+              <RangeBar value={temp} min={lo - 4} max={hi + 4} lo={lo} hi={hi} tone={ts} />
+            )}
+            <div className="row" style={{ justifyContent: 'space-between', marginTop: 4 }}>
+              <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{lo}°</span>
+              <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{hi}°</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Humidity */}
+        <div className="col gap-2">
+          <div className="row gap-2">
+            <Icon name="drop" size={14} style={{ color: `var(--${hs})` }} />
+            <span className="t-label">濕度</span>
+          </div>
+          <div className="kpi-value" style={{ fontSize: 28, color: `var(--${hs})` }}>
+            {hum != null ? hum.toFixed(0) : '--'}
+            <span style={{ fontSize: 14, color: 'var(--ink-3)', marginLeft: 3 }}>%</span>
+          </div>
+          <div style={{ marginTop: 2 }}>
+            {hum != null && (
+              <RangeBar value={hum} min={hLo - 10} max={hHi + 10} lo={hLo} hi={hHi} tone={hs} />
+            )}
+            <div className="row" style={{ justifyContent: 'space-between', marginTop: 4 }}>
+              <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{hLo}%</span>
+              <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{hHi}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Device chips + chevron */}
+      <div className="row gap-2" style={{ justifyContent: 'space-between' }}>
+        <div className="row gap-2">
+          {tankRelays.slice(0, 5).map(r => (
+            <DeviceIcon key={r.id} type={r.device_type} />
+          ))}
+        </div>
+        <div className="row gap-2" style={{ color: 'var(--ink-4)', fontSize: 12 }}>
+          <span className="t-mono">{activeRelays.length}/{tankRelays.length}</span>
+          <span style={{ color: 'var(--ink-4)' }}>設備運行</span>
+          <Icon name="chevron-right" size={14} />
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function ClimateHero({ tanks }) {
+  const temps = tanks.map(t => t.currentTemp).filter(Boolean);
+  const avg = temps.length ? (temps.reduce((a, b) => a + b, 0) / temps.length) : null;
+  const maxTemp = temps.length ? Math.max(...temps) : null;
+  const minTemp = temps.length ? Math.min(...temps) : null;
+
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="t-label" style={{ marginBottom: 14 }}>綜合氣候</div>
+      <div className="row gap-5" style={{ alignItems: 'flex-start' }}>
+        <div className="col gap-3" style={{ minWidth: 130 }}>
+          <div>
+            <div className="kpi-value" style={{ fontSize: 40, color: 'var(--amber)' }}>
+              {avg != null ? avg.toFixed(1) : '--'}
+              <span style={{ fontSize: 18, color: 'var(--ink-3)', marginLeft: 4 }}>°C</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>平均溫度 · 全部飼養缸</div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+            {maxTemp != null && (
+              <div className="row gap-2">
+                <Icon name="arrow-up" size={12} style={{ color: 'var(--crimson)' }} />
+                <span style={{ fontSize: 12, color: 'var(--crimson)' }} className="t-mono">{maxTemp.toFixed(1)}°C</span>
+                <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>最高</span>
+              </div>
+            )}
+            {minTemp != null && (
+              <div className="row gap-2">
+                <Icon name="arrow-down" size={12} style={{ color: 'var(--sky)' }} />
+                <span style={{ fontSize: 12, color: 'var(--sky)' }} className="t-mono">{minTemp.toFixed(1)}°C</span>
+                <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>最低</span>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* Multi-tank temp sparklines */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {tanks.slice(0, 3).map((tank, i) => (
+            <div key={tank.id} className="row gap-3">
+              <span style={{ fontSize: 12, color: 'var(--ink-3)', width: 60, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tank.name}</span>
+              {tank.history24h?.length > 1 ? (
+                <Sparkline
+                  values={tank.history24h.map(h => h.temperature)}
+                  color={`var(--${TONES[i]})`}
+                  width={160}
+                  height={28}
+                  fill={false}
+                />
+              ) : (
+                <div style={{ flex: 1, height: 28, borderRadius: 4, background: 'rgba(255,255,255,0.03)', display: 'flex', alignItems: 'center', paddingLeft: 8 }}>
+                  <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+                    {tank.currentTemp != null ? `${tank.currentTemp.toFixed(1)}°C` : '無資料'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+function ActivityCard({ events }) {
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="t-label" style={{ marginBottom: 14 }}>近期動態</div>
+      {events.length === 0 ? (
+        <div style={{ color: 'var(--ink-4)', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>目前沒有動態</div>
+      ) : (
+        <div className="col gap-3">
+          {events.slice(0, 6).map((ev, i) => (
+            <div key={ev.id ?? i} className="row gap-3">
+              <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-4)', width: 40, flexShrink: 0 }}>
+                {new Date(ev.timestamp || ev.created_at || Date.now()).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false })}
+              </span>
+              <div style={{
+                width: 28, height: 28, borderRadius: 8,
+                background: 'color-mix(in oklch, var(--amber) 10%, transparent)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                color: 'var(--amber)',
+              }}>
+                <Icon name="pulse" size={13} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {ev.message || ev.description || '系統事件'}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
+function UpcomingCard({ schedules, tanks }) {
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const toneByType = { daily: 'amber', weekly: 'violet', cron: 'sky', temperature: 'crimson' };
+
+  const upcoming = schedules
+    .filter(s => s.is_enabled && s.start_time)
+    .map(s => {
+      const [h, m] = (s.start_time || '00:00').split(':').map(Number);
+      const sMin = h * 60 + (m || 0);
+      const diff = sMin >= nowMin ? sMin - nowMin : 1440 - nowMin + sMin;
+      return { ...s, diffMin: diff, sMin };
+    })
+    .sort((a, b) => a.diffMin - b.diffMin)
+    .slice(0, 5);
+
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="t-label" style={{ marginBottom: 14 }}>即將執行</div>
+      {upcoming.length === 0 ? (
+        <div style={{ color: 'var(--ink-4)', fontSize: 13, textAlign: 'center', padding: '16px 0' }}>暫無排程</div>
+      ) : (
+        <div className="col gap-3">
+          {upcoming.map((s, i) => {
+            const tone = toneByType[s.schedule_type] || 'amber';
+            const tank = tanks.find(t => t.id === s.tank_id);
+            return (
+              <div key={s.id ?? i} className="row gap-3">
+                <span className="t-num" style={{ fontSize: 12, color: `var(--${tone})`, width: 40, flexShrink: 0 }}>
+                  {s.start_time?.slice(0, 5) || '--:--'}
+                </span>
+                <div style={{ width: 3, alignSelf: 'stretch', borderRadius: 2, background: `var(--${tone})`, flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {s.name || '排程任務'}
+                  </div>
+                  {tank && <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>{tank.name}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
+export default function Dashboard() {
   const navigate = useNavigate();
-  
   const [tanks, setTanks] = useState([]);
-  const [relayChannels, setRelayChannels] = useState([]);
-  const [activeAlerts, setActiveAlerts] = useState([]);
+  const [relays, setRelays] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 載入飼養缸資料
-  const loadTanks = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/tanks`);
-      const tanksData = await response.json();
-      
-      // 為每個飼養缸載入最新溫度資料
-      const tanksWithTemp = await Promise.all(
-        tanksData.map(async (tank) => {
-          try {
-            const tempResponse = await fetch(`${API_BASE}/api/temperature/latest/${tank.id}`);
-            const tempData = await tempResponse.json();
-            return {
-              ...tank,
-              currentTemp: tempData?.temperature || null,
-              humidity: tempData?.humidity || null,
-              lastUpdate: tempData?.timestamp || null
-            };
-          } catch (error) {
-            return {
-              ...tank,
-              currentTemp: null,
-              humidity: null,
-              lastUpdate: null
-            };
-          }
-        })
-      );
-      
-      setTanks(tanksWithTemp);
-    } catch (error) {
-      console.error('載入飼養缸資料失敗:', error);
-    }
-  };
-
-  // 載入繼電器通道資料
-  const loadRelayChannels = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/relays`);
-      const data = await response.json();
-      setRelayChannels(data);
-    } catch (error) {
-      console.error('載入繼電器資料失敗:', error);
-    }
-  };
-
-  // 載入活躍告警
-  const loadActiveAlerts = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/api/events/alerts/active?limit=5`);
-      const data = await response.json();
-      setActiveAlerts(data);
-    } catch (error) {
-      console.error('載入告警資料失敗:', error);
-    }
-  };
-
-  // 初始載入
-  useEffect(() => {
-    const loadAll = async () => {
-      setLoading(true);
-      await Promise.all([loadTanks(), loadRelayChannels(), loadActiveAlerts()]);
-      setLoading(false);
-    };
-    loadAll();
-
-    // 每 5 秒更新一次溫度資料
-    const tempInterval = setInterval(loadTanks, 5000);
-    // 每 30 秒更新一次告警資料
-    const alertInterval = setInterval(loadActiveAlerts, 30000);
-    return () => {
-      clearInterval(tempInterval);
-      clearInterval(alertInterval);
-    };
+  const loadTanks = useCallback(async () => {
+    const r = await fetch('/api/tanks');
+    const data = await r.json();
+    const withTemp = await Promise.all(data.map(async (tank, i) => {
+      try {
+        const [tr, hr] = await Promise.all([
+          fetch(`/api/temperature/latest/${tank.id}`).then(x => x.json()),
+          fetch(`/api/temperature/history/${tank.id}?hours=24`).then(x => x.json()).catch(() => []),
+        ]);
+        return {
+          ...tank,
+          currentTemp: tr?.temperature ?? null,
+          humidity: tr?.humidity ?? null,
+          history24h: Array.isArray(hr) ? hr : [],
+        };
+      } catch {
+        return { ...tank, currentTemp: null, humidity: null, history24h: [] };
+      }
+    }));
+    setTanks(withTemp);
   }, []);
 
-  // 計算溫度狀態
-  const getTempStatus = (temp, min, max) => {
-    if (!temp) return 'unknown';
-    if (temp < min) return 'low';
-    if (temp > max) return 'high';
-    return 'normal';
-  };
+  const loadAlerts = useCallback(async () => {
+    try {
+      const r = await fetch('/api/events/alerts/active?limit=5');
+      setAlerts(await r.json());
+    } catch { setAlerts([]); }
+  }, []);
 
-  // 獲取該飼養缸的運行中設備數量
-  const getActiveDevicesCount = (tankId) => {
-    return relayChannels.filter(
-      channel => channel.tank_id === tankId && channel.current_state && channel.enabled
-    ).length;
-  };
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([
+        loadTanks(),
+        loadAlerts(),
+        fetch('/api/relays').then(r => r.json()).then(setRelays).catch(() => {}),
+        fetch('/api/events?limit=6').then(r => r.json()).then(setEvents).catch(() => {}),
+        fetch('/api/schedules').then(r => r.json()).then(setSchedules).catch(() => {}),
+      ]);
+      setLoading(false);
+    };
+    init();
+    const t1 = setInterval(loadTanks, 5000);
+    const t2 = setInterval(loadAlerts, 30000);
+    return () => { clearInterval(t1); clearInterval(t2); };
+  }, [loadTanks, loadAlerts]);
+
+  const activeTanks = tanks.filter(t => t.currentTemp != null).length;
+  const activeDevices = relays.filter(r => r.current_state && r.enabled).length;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <Activity className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">載入中...</p>
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, color: 'var(--ink-3)' }}>
+        載入中…
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">儀表板總覽</h1>
-        <div className="flex items-center space-x-2">
-          <Activity className="w-5 h-5 text-green-500 animate-pulse" />
-          <span className="text-sm text-gray-600">系統運行中</span>
-        </div>
+    <div className="col gap-5">
+      {/* KPI Hero Strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 16 }}>
+        <ClimateHero tanks={tanks} />
+        <KpiCard
+          label="飼養缸"
+          value={tanks.length}
+          sublabel={`${activeTanks} 個資料正常`}
+          tone="amber"
+          icon={<Icon name="tank" size={16} />}
+        />
+        <KpiCard
+          label="異常告警"
+          value={alerts.length}
+          sublabel={alerts.length === 0 ? '目前一切正常' : '點擊查看詳情'}
+          tone={alerts.length > 0 ? 'crimson' : 'sage'}
+          icon={<Icon name="alert" size={16} />}
+        />
+        <KpiCard
+          label="運行設備"
+          value={activeDevices}
+          sublabel={`共 ${relays.filter(r => r.enabled).length} 個設備`}
+          tone="sky"
+          icon={<Icon name="pulse" size={16} />}
+        />
       </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">飼養缸總數</p>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{tanks.length}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <Activity className="w-8 h-8 text-blue-600" />
-            </div>
-          </div>
+      {/* Tank Tiles */}
+      <div>
+        <div className="row gap-3" style={{ marginBottom: 16 }}>
+          <span className="t-display" style={{ fontSize: 18 }}>飼養缸</span>
+          <span className="t-mono" style={{ fontSize: 13, color: 'var(--ink-4)' }}>{tanks.length} 個</span>
         </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">溫度正常</p>
-              <p className="text-3xl font-bold text-green-600 mt-2">
-                {tanks.filter(t => getTempStatus(t.currentTemp, t.targetTempMin, t.targetTempMax) === 'normal').length}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <Thermometer className="w-8 h-8 text-green-600" />
-            </div>
+        {tanks.length === 0 ? (
+          <GlassCard style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>
+            尚未建立任何飼養缸
+          </GlassCard>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {tanks.map((tank, i) => (
+              <TankTile
+                key={tank.id}
+                tank={tank}
+                relays={relays}
+                index={i}
+                onClick={() => navigate(`/tank/${tank.id}`)}
+              />
+            ))}
           </div>
-        </div>
-
-        <div 
-          className="bg-white rounded-lg shadow p-6 cursor-pointer hover:shadow-lg transition-shadow"
-          onClick={() => navigate('/alerts')}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">異常警報</p>
-              <p className="text-3xl font-bold text-red-600 mt-2">
-                {activeAlerts.length}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">點擊查看詳情</p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <AlertTriangle className="w-8 h-8 text-red-600" />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">運行設備</p>
-              <p className="text-3xl font-bold text-purple-600 mt-2">
-                {relayChannels.filter(ch => ch.current_state && ch.enabled).length}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Zap className="w-8 h-8 text-purple-600" />
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* 最新告警 */}
-      {activeAlerts.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-              <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
-              最新告警
-            </h2>
-            <button
-              onClick={() => navigate('/alerts')}
-              className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
-            >
-              查看全部
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </button>
-          </div>
-          <div className="space-y-3">
-            {activeAlerts.map((alert) => {
-              const getAlertColor = (type) => {
-                switch (type) {
-                  case 'critical':
-                    return 'bg-red-50 border-red-200';
-                  case 'error':
-                    return 'bg-orange-50 border-orange-200';
-                  case 'warning':
-                    return 'bg-yellow-50 border-yellow-200';
-                  default:
-                    return 'bg-gray-50 border-gray-200';
-                }
-              };
-              
-              const getAlertIcon = (type) => {
-                return <AlertTriangle className={`w-4 h-4 ${
-                  type === 'critical' ? 'text-red-600' :
-                  type === 'error' ? 'text-orange-600' :
-                  'text-yellow-600'
-                }`} />;
-              };
-              
-              return (
-                <div
-                  key={alert.id}
-                  className={`flex items-start justify-between p-3 border rounded-lg ${getAlertColor(alert.type)}`}
-                >
-                  <div className="flex items-start space-x-2">
-                    {getAlertIcon(alert.type)}
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{alert.message}</p>
-                      <p className="text-xs text-gray-600 mt-1">{alert.time}</p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    alert.type === 'critical' ? 'bg-red-100 text-red-800' :
-                    alert.type === 'error' ? 'bg-orange-100 text-orange-800' :
-                    'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {alert.type === 'critical' ? '嚴重' :
-                     alert.type === 'error' ? '錯誤' : '警告'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 各飼養缸狀態卡片 */}
-      {tanks.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <p className="text-gray-600">尚未建立任何飼養缸</p>
-          <button
-            onClick={() => navigate('/tanks')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            立即建立
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {tanks.map(tank => {
-            const tempStatus = getTempStatus(tank.currentTemp, tank.target_temp_min, tank.target_temp_max);
-            const activeDevices = getActiveDevicesCount(tank.id);
-          
-          return (
-            <div key={tank.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden">
-              {/* 頭部圖片區域 */}
-              <div className="h-32 bg-gradient-to-br from-green-400 to-blue-500 relative overflow-hidden">
-                {tank.image_url ? (
-                  <img src={tank.image_url} alt={tank.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-white text-4xl font-bold">
-                    {tank.name.charAt(0)}
-                  </div>
-                )}
-                {tempStatus !== 'normal' && tempStatus !== 'unknown' && (
-                  <div className="absolute top-2 right-2 p-2 bg-red-500 rounded-full">
-                    <AlertTriangle className="w-5 h-5 text-white" />
-                  </div>
-                )}
-              </div>
-
-              {/* 資訊區域 */}
-              <div className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">{tank.name}</h3>
-                    {tank.description && (
-                      <p className="text-sm text-gray-600">{tank.description}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => navigate(`/tank/${tank.id}`)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    <ChevronRight className="w-5 h-5 text-gray-600" />
-                  </button>
-                </div>
-
-                {/* 溫度顯示 */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-gray-600">當前溫度</span>
-                    {tank.currentTemp ? (
-                      <span className={`text-2xl font-bold ${
-                        tempStatus === 'high' ? 'text-red-600' :
-                        tempStatus === 'low' ? 'text-blue-600' :
-                        'text-green-600'
-                      }`}>
-                        {tank.currentTemp.toFixed(1)}°C
-                      </span>
-                    ) : (
-                      <span className="text-2xl font-bold text-gray-400">--°C</span>
-                    )}
-                  </div>
-                  {tank.currentTemp && (
-                    <>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full ${
-                            tempStatus === 'high' ? 'bg-red-500' :
-                            tempStatus === 'low' ? 'bg-blue-500' :
-                            'bg-green-500'
-                          }`}
-                          style={{ 
-                            width: `${Math.min(100, Math.max(0, ((tank.currentTemp - 20) / 15) * 100))}%` 
-                          }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-xs text-gray-500 mt-1">
-                        <span>{tank.target_temp_min}°C</span>
-                        <span>{tank.target_temp_max}°C</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* 設備狀態 */}
-                <div className="flex items-center justify-between text-sm pt-3 border-t">
-                  <div className="flex items-center space-x-2">
-                    <Zap className={`w-4 h-4 ${activeDevices > 0 ? 'text-green-500' : 'text-gray-400'}`} />
-                    <span className="text-gray-600">
-                      {activeDevices} 個設備運行中
-                    </span>
-                  </div>
-                  {tank.humidity && (
-                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                      濕度 {tank.humidity.toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        </div>
-      )}
+      {/* Activity + Upcoming */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+        <ActivityCard events={events} />
+        <UpcomingCard schedules={schedules} tanks={tanks} />
+      </div>
     </div>
   );
-};
-
-export default Dashboard;
+}

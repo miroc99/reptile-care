@@ -1,11 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* ─────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────
    爬蟲環控系統 · Design tokens & shared component styles
    Aesthetic: deep terrarium-at-night, warm-black + glass
-   ───────────────────────────────────────────────────────────────── */
+   ──────────────────────────────────────────────────────────────── */
 
 :root {
   /* Surfaces */
@@ -24,19 +20,19 @@
   --ink-4: oklch(0.42 0.012 65);
 
   /* Accents */
-  --amber:      oklch(0.80 0.13 65);
-  --amber-dim:  oklch(0.55 0.10 65);
-  --sage:       oklch(0.78 0.10 155);
-  --sage-dim:   oklch(0.50 0.07 155);
-  --sky:        oklch(0.80 0.09 230);
-  --sky-dim:    oklch(0.52 0.07 230);
-  --crimson:    oklch(0.70 0.18 25);
-  --crimson-dim:oklch(0.45 0.13 25);
-  --violet:     oklch(0.74 0.10 305);
+  --amber:   oklch(0.80 0.13 65);
+  --amber-dim: oklch(0.55 0.10 65);
+  --sage:    oklch(0.78 0.10 155);
+  --sage-dim: oklch(0.50 0.07 155);
+  --sky:     oklch(0.80 0.09 230);
+  --sky-dim: oklch(0.52 0.07 230);
+  --crimson: oklch(0.70 0.18 25);
+  --crimson-dim: oklch(0.45 0.13 25);
+  --violet:  oklch(0.74 0.10 305);
 
-  --radius-s:  10px;
-  --radius-m:  16px;
-  --radius-l:  22px;
+  --radius-s: 10px;
+  --radius-m: 16px;
+  --radius-l: 22px;
   --radius-xl: 28px;
 
   --font-display: "Space Grotesk", "Noto Sans TC", sans-serif;
@@ -45,12 +41,6 @@
 }
 
 * { box-sizing: border-box; }
-
-html, body, #root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
 
 .app-root {
   position: relative;
@@ -62,15 +52,16 @@ html, body, #root {
     var(--bg-0);
   color: var(--ink-1);
   font-family: var(--font-tc);
-  font-size: 14px;
   font-feature-settings: "ss01", "cv11";
   overflow: hidden;
   letter-spacing: 0.01em;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Glass card ───────────────────────────────────────────────── */
+.app-root.desktop { font-size: 14px; }
+.app-root.mobile { font-size: 14px; }
+
+/* ── Glass card ─────────────────────────────────────────────── */
 .glass {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -98,7 +89,7 @@ html, body, #root {
   border-color: var(--glass-border-hi);
 }
 
-/* ── Typography ───────────────────────────────────────────────── */
+/* ── Type ───────────────────────────────────────────────────── */
 .t-display { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; }
 .t-num     { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .t-mono    { font-family: var(--font-mono); font-weight: 400; font-variant-numeric: tabular-nums; }
@@ -106,7 +97,7 @@ html, body, #root {
 .t-muted   { color: var(--ink-3); }
 .t-dim     { color: var(--ink-4); }
 
-/* ── Pills / badges ───────────────────────────────────────────── */
+/* ── Pills / badges ─────────────────────────────────────────── */
 .pill {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 10px;
@@ -117,17 +108,16 @@ html, body, #root {
   color: var(--ink-2);
   letter-spacing: 0.04em;
 }
-.pill.sage    { color: var(--sage);    border-color: color-mix(in oklch, var(--sage) 30%, transparent);    background: color-mix(in oklch, var(--sage) 8%, transparent); }
-.pill.amber   { color: var(--amber);   border-color: color-mix(in oklch, var(--amber) 30%, transparent);   background: color-mix(in oklch, var(--amber) 8%, transparent); }
+.pill.sage    { color: var(--sage); border-color: color-mix(in oklch, var(--sage) 30%, transparent); background: color-mix(in oklch, var(--sage) 8%, transparent); }
+.pill.amber   { color: var(--amber); border-color: color-mix(in oklch, var(--amber) 30%, transparent); background: color-mix(in oklch, var(--amber) 8%, transparent); }
 .pill.crimson { color: var(--crimson); border-color: color-mix(in oklch, var(--crimson) 35%, transparent); background: color-mix(in oklch, var(--crimson) 10%, transparent); }
-.pill.sky     { color: var(--sky);     border-color: color-mix(in oklch, var(--sky) 30%, transparent);     background: color-mix(in oklch, var(--sky) 8%, transparent); }
+.pill.sky     { color: var(--sky); border-color: color-mix(in oklch, var(--sky) 30%, transparent); background: color-mix(in oklch, var(--sky) 8%, transparent); }
 
-/* ── Status dots ──────────────────────────────────────────────── */
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: currentColor; box-shadow: 0 0 8px currentColor; }
-.dot.pulse { animation: dotpulse 1.6s ease-in-out infinite; }
-@keyframes dotpulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+.dot.pulse { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
 
-/* ── Avatar (monogram circles) ────────────────────────────────── */
+/* ── Avatar (monogram circles) ──────────────────────────────── */
 .avatar {
   display: inline-flex; align-items: center; justify-content: center;
   border-radius: 999px;
@@ -142,12 +132,12 @@ html, body, #root {
 .avatar.violet  { background: radial-gradient(circle at 30% 25%, color-mix(in oklch, var(--violet) 50%, transparent), color-mix(in oklch, var(--violet) 16%, transparent) 70%); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--violet) 35%, transparent); }
 .avatar.crimson { background: radial-gradient(circle at 30% 25%, color-mix(in oklch, var(--crimson) 50%, transparent), color-mix(in oklch, var(--crimson) 16%, transparent) 70%); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--crimson) 35%, transparent); }
 
-/* ── Scroll ───────────────────────────────────────────────────── */
+/* ── Scroll ─────────────────────────────────────────────────── */
 .scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.12) transparent; }
 .scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 4px; }
 
-/* ── Toggle switch ────────────────────────────────────────────── */
+/* ── Toggle switch ──────────────────────────────────────────── */
 .toggle {
   width: 44px; height: 26px;
   border-radius: 999px;
@@ -169,11 +159,15 @@ html, body, #root {
 }
 .toggle.on { background: color-mix(in oklch, var(--amber) 80%, transparent); border-color: color-mix(in oklch, var(--amber) 50%, transparent); }
 .toggle.on::after { transform: translateX(18px); background: #1a1410; }
-.toggle.sage.on    { background: color-mix(in oklch, var(--sage) 80%, transparent);   border-color: color-mix(in oklch, var(--sage) 50%, transparent); }
-.toggle.sky.on     { background: color-mix(in oklch, var(--sky) 80%, transparent);    border-color: color-mix(in oklch, var(--sky) 50%, transparent); }
-.toggle.violet.on  { background: color-mix(in oklch, var(--violet) 80%, transparent); border-color: color-mix(in oklch, var(--violet) 50%, transparent); }
 
-/* ── Icon button ──────────────────────────────────────────────── */
+.toggle.sage.on { background: color-mix(in oklch, var(--sage) 80%, transparent); border-color: color-mix(in oklch, var(--sage) 50%, transparent); }
+.toggle.sky.on  { background: color-mix(in oklch, var(--sky) 80%, transparent); border-color: color-mix(in oklch, var(--sky) 50%, transparent); }
+.toggle.violet.on { background: color-mix(in oklch, var(--violet) 80%, transparent); border-color: color-mix(in oklch, var(--violet) 50%, transparent); }
+
+/* ── Sparkline track styles ─────────────────────────────────── */
+.spark-track { stroke: rgba(255,255,255,0.06); }
+
+/* ── Icon button ────────────────────────────────────────────── */
 .iconbtn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px;
@@ -186,7 +180,7 @@ html, body, #root {
 }
 .iconbtn:hover { background: var(--glass-bg-hi); color: var(--ink-1); border-color: var(--glass-border-hi); }
 
-/* ── Nav rail ─────────────────────────────────────────────────── */
+/* ── Nav rail ───────────────────────────────────────────────── */
 .nav-item {
   display: flex; align-items: center; gap: 14px;
   padding: 11px 14px;
@@ -203,7 +197,7 @@ html, body, #root {
 }
 .nav-item.active .nav-icon { color: var(--amber); }
 
-/* ── Tabs ─────────────────────────────────────────────────────── */
+/* ── Tabs ───────────────────────────────────────────────────── */
 .tabs {
   display: inline-flex;
   padding: 4px;
@@ -224,34 +218,27 @@ html, body, #root {
 .tab:hover { color: var(--ink-1); }
 .tab.active { background: color-mix(in oklch, var(--amber) 20%, transparent); color: var(--amber); }
 
-/* ── Tank tile hover ──────────────────────────────────────────── */
-.tank-tile { cursor: pointer; transition: transform 220ms ease, border-color 200ms, background 200ms; }
+/* ── Tank tile hover ────────────────────────────────────────── */
+.tank-tile { cursor: pointer; transition: transform 220ms, border-color 200ms, background 200ms; }
 .tank-tile:hover { transform: translateY(-2px); border-color: var(--glass-border-hi); background: var(--glass-bg-hi); }
 
-/* ── Schedule track segments ──────────────────────────────────── */
+/* ── Schedule track segments ────────────────────────────────── */
 .sched-row { position: relative; height: 28px; border-radius: 8px; background: rgba(255,255,255,0.025); overflow: hidden; }
 .sched-seg { position: absolute; top: 0; bottom: 0; border-radius: 6px; opacity: 0.9; }
 
-/* ── Range bar ────────────────────────────────────────────────── */
-.range-track  { height: 6px; background: rgba(255,255,255,0.06); border-radius: 999px; position: relative; }
-.range-fill   { position: absolute; top: 0; bottom: 0; border-radius: 999px; }
+/* ── Range bar ──────────────────────────────────────────────── */
+.range-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 999px; position: relative; }
+.range-fill  { position: absolute; top: 0; bottom: 0; border-radius: 999px; }
 .range-marker { position: absolute; top: -4px; width: 2px; height: 14px; background: var(--ink-1); border-radius: 1px; box-shadow: 0 0 8px rgba(255,255,255,0.4); }
 
-/* ── KPI ──────────────────────────────────────────────────────── */
+/* ── KPI ──────────────────────────────────────────────────── */
 .kpi-value { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
 
-/* ── Sparkline track ──────────────────────────────────────────── */
-.spark-track { stroke: rgba(255,255,255,0.06); }
-
-/* ── Mobile scroll ────────────────────────────────────────────── */
+/* ── Mobile-specific scroll inertia ─────────────────────────── */
 .mobile-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
 .mobile-scroll::-webkit-scrollbar { display: none; }
 
-/* ── Flex helpers ─────────────────────────────────────────────── */
+/* ── Misc helpers ───────────────────────────────────────────── */
 .row { display: flex; align-items: center; }
 .col { display: flex; flex-direction: column; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-.gap-4 { gap: 16px; }
-.gap-5 { gap: 20px; }
-.gap-6 { gap: 24px; }
+.gap-2 { gap: 8px; } .gap-3 { gap: 12px; } .gap-4 { gap: 16px; } .gap-5 { gap: 20px; } .gap-6 { gap: 24px; }

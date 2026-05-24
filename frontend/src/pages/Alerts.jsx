@@ -1,357 +1,310 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, Mail, MessageSquare, Save, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import GlassCard from '../components/ui/GlassCard';
+import Pill from '../components/ui/Pill';
+import Dot from '../components/ui/Dot';
+import Icon from '../components/ui/Icon';
+import { Tabs, Tab } from '../components/ui/Tabs';
 
-// 動態獲取 API base URL
-const API_BASE = window.location.origin;
+function alertTone(level) {
+  if (level === 'critical' || level === 'high') return 'crimson';
+  if (level === 'error' || level === 'mid' || level === 'warning') return 'amber';
+  return 'sky';
+}
 
-const Alerts = () => {
-  const [settings, setSettings] = useState({
-    tempHigh: 32,
-    tempLow: 24,
-    emailEnabled: true,
-    email: 'user@example.com',
-    lineEnabled: false,
-    lineToken: '',
-    telegramEnabled: false,
-    telegramToken: '',
-    telegramChatId: ''
-  });
+function AlertRow({ alert, onAck, dismissed }) {
+  const tone = alertTone(alert.level || alert.type);
+  const [hiding, setHiding] = useState(false);
 
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // 載入告警資料
-  const loadAlerts = async () => {
-    try {
-      setRefreshing(true);
-      const response = await fetch(`${API_BASE}/api/events/alerts?limit=50`);
-      const data = await response.json();
-      setAlerts(data);
-    } catch (error) {
-      console.error('載入告警資料失敗:', error);
-    } finally {
-      setRefreshing(false);
-      setLoading(false);
-    }
+  const handleAck = () => {
+    setHiding(true);
+    setTimeout(() => onAck(alert.id), 280);
   };
 
-  useEffect(() => {
-    loadAlerts();
-    // 每 30 秒自動刷新一次
-    const interval = setInterval(loadAlerts, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleSave = () => {
-    alert('設定已儲存！');
-  };
-
-  const handleTest = (type) => {
-    alert(`正在發送測試通知到 ${type}...`);
-  };
-
-  const getAlertIcon = (type) => {
-    switch (type) {
-      case 'critical':
-        return <AlertTriangle className="w-5 h-5 text-red-600" />;
-      case 'error':
-        return <AlertTriangle className="w-5 h-5 text-orange-600" />;
-      case 'warning':
-        return <AlertTriangle className="w-5 h-5 text-yellow-600" />;
-      default:
-        return <CheckCircle className="w-5 h-5 text-blue-600" />;
-    }
-  };
-
-  const getAlertColor = (type) => {
-    switch (type) {
-      case 'critical':
-        return 'bg-red-50 border-red-200';
-      case 'error':
-        return 'bg-orange-50 border-orange-200';
-      case 'warning':
-        return 'bg-yellow-50 border-yellow-200';
-      default:
-        return 'bg-blue-50 border-blue-200';
-    }
-  };
+  if (dismissed) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">告警設定</h1>
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 14,
+      padding: '14px 18px',
+      borderBottom: '1px solid var(--glass-border)',
+      opacity: hiding ? 0 : 1,
+      maxHeight: hiding ? 0 : 80,
+      overflow: 'hidden',
+      transition: 'opacity 200ms, max-height 280ms ease',
+    }}>
+      <Dot tone={tone} pulse={tone === 'crimson'} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: 'var(--ink-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {alert.message || alert.description || '系統告警'}
+        </div>
+        <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 3 }}>
+          {alert.time || (alert.created_at ? new Date(alert.created_at).toLocaleString('zh-TW') : '--')}
+        </div>
+      </div>
+      <Pill tone={tone}>
+        {tone === 'crimson' ? '嚴重' : tone === 'amber' ? '一般' : '輕微'}
+      </Pill>
+      <button
+        onClick={handleAck}
+        style={{
+          flexShrink: 0, padding: '6px 14px', borderRadius: 'var(--radius-s)',
+          background: 'color-mix(in oklch, var(--sage) 12%, transparent)',
+          border: '1px solid color-mix(in oklch, var(--sage) 30%, transparent)',
+          color: 'var(--sage)', fontSize: 12, cursor: 'pointer', fontWeight: 500,
+        }}
+      >
+        處理
+      </button>
+    </div>
+  );
+}
+
+function SeverityBar({ open, history }) {
+  const all = [...open, ...history];
+  const high = all.filter(a => ['critical', 'high'].includes(a.level || a.type)).length;
+  const mid = all.filter(a => ['error', 'mid', 'warning'].includes(a.level || a.type)).length;
+  const low = all.length - high - mid;
+  const total = all.length || 1;
+
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+        <div className="t-display" style={{ fontSize: 14 }}>嚴重度分布</div>
+        <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{all.length} 則</div>
+      </div>
+      <div style={{ height: 10, borderRadius: 999, overflow: 'hidden', background: 'rgba(255,255,255,0.04)', display: 'flex' }}>
+        <div style={{ width: `${(high / total) * 100}%`, background: 'var(--crimson)', transition: 'width 600ms' }} />
+        <div style={{ width: `${(mid / total) * 100}%`, background: 'var(--amber)', transition: 'width 600ms' }} />
+        <div style={{ width: `${(low / total) * 100}%`, background: 'var(--sky)', transition: 'width 600ms' }} />
+      </div>
+      <div className="row gap-5" style={{ marginTop: 14 }}>
+        {[
+          { tone: 'crimson', label: '嚴重', count: high },
+          { tone: 'amber',   label: '一般', count: mid  },
+          { tone: 'sky',     label: '輕微', count: low  },
+        ].map(s => (
+          <div key={s.tone} className="col" style={{ gap: 3 }}>
+            <div className="t-mono" style={{ fontSize: 18, color: `var(--${s.tone})` }}>{s.count}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </GlassCard>
+  );
+}
+
+function HeatmapBar({ alerts }) {
+  const bins = Array(24).fill(0);
+  alerts.forEach(a => {
+    const t = a.created_at || a.time;
+    if (t) {
+      const h = new Date(t).getHours();
+      if (!isNaN(h)) bins[h]++;
+    }
+  });
+  const data = bins.map((v, h) => ({ h: String(h).padStart(2, '0'), v }));
+
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="t-label" style={{ marginBottom: 14 }}>觸發時段分布</div>
+      <ResponsiveContainer width="100%" height={100}>
+        <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <XAxis dataKey="h" tick={{ fontSize: 9, fill: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }} interval={3} />
+          <YAxis tick={{ fontSize: 9, fill: 'var(--ink-4)' }} />
+          <Tooltip
+            contentStyle={{ background: 'var(--bg-1)', border: '1px solid var(--glass-border)', borderRadius: 8, fontSize: 12 }}
+            labelStyle={{ color: 'var(--ink-3)' }}
+          />
+          <Bar dataKey="v" fill="var(--crimson)" radius={[2, 2, 0, 0]} opacity={0.75} />
+        </BarChart>
+      </ResponsiveContainer>
+    </GlassCard>
+  );
+}
+
+function SourceDonut({ alerts, tanks }) {
+  const counts = {};
+  alerts.forEach(a => {
+    const key = String(a.tank_id ?? 'unknown');
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const COLORS = ['var(--crimson)', 'var(--amber)', 'var(--sky)', 'var(--violet)', 'var(--sage)'];
+  const data = Object.entries(counts).map(([id, value], i) => {
+    const tank = tanks.find(t => String(t.id) === id);
+    return { name: tank?.name || '未知', value, fill: COLORS[i % COLORS.length] };
+  });
+
+  if (!data.length) return null;
+
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="t-label" style={{ marginBottom: 14 }}>來源飼養缸</div>
+      <div className="row gap-4">
+        <PieChart width={100} height={100}>
+          <Pie data={data} cx={50} cy={50} innerRadius={28} outerRadius={46} dataKey="value" paddingAngle={2}>
+            {data.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+          </Pie>
+        </PieChart>
+        <div className="col" style={{ gap: 8, justifyContent: 'center' }}>
+          {data.map((d, i) => (
+            <div key={i} className="row gap-2">
+              <div style={{ width: 8, height: 8, borderRadius: 999, background: d.fill, flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: 'var(--ink-2)' }}>{d.name}</span>
+              <span className="t-mono" style={{ fontSize: 11, color: 'var(--ink-4)' }}>{d.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+export default function Alerts() {
+  const [open, setOpen] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [tanks, setTanks] = useState([]);
+  const [filter, setFilter] = useState('all');
+  const [dismissed, setDismissed] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/events/alerts/active?limit=20').then(r => r.json()),
+      fetch('/api/events?limit=50').then(r => r.json()),
+      fetch('/api/tanks').then(r => r.json()),
+    ]).then(([active, all, t]) => {
+      const activeIds = new Set((active || []).map(a => a.id));
+      setOpen(active || []);
+      setHistory((Array.isArray(all) ? all : []).filter(e => !activeIds.has(e.id)));
+      setTanks(t || []);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }, []);
+
+  const handleAck = (id) => {
+    setDismissed(prev => new Set([...prev, id]));
+  };
+
+  const filteredHistory = history.filter(a => {
+    if (filter === 'high') return ['critical', 'high'].includes(a.level || a.type);
+    if (filter === 'mid') return ['error', 'mid', 'warning'].includes(a.level || a.type);
+    if (filter === 'low') return !['critical', 'high', 'error', 'mid', 'warning'].includes(a.level || a.type);
+    return true;
+  });
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: 60, color: 'var(--ink-3)' }}>載入中…</div>;
+  }
+
+  const activeOpen = open.filter(a => !dismissed.has(a.id));
+
+  return (
+    <div className="col gap-5">
+      {/* Header */}
+      <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="col" style={{ gap: 4 }}>
+          <div className="t-display" style={{ fontSize: 22 }}>告警中心</div>
+          <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>
+            {activeOpen.length} 則待處理 · {history.length} 則歷史記錄
+          </div>
+        </div>
         <button
-          onClick={handleSave}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          onClick={() => setDismissed(new Set(open.map(a => a.id)))}
+          className="iconbtn"
+          style={{ width: 'auto', padding: '0 14px', gap: 6, fontSize: 13 }}
         >
-          <Save className="w-5 h-5" />
-          <span>儲存設定</span>
+          <Icon name="check" size={14} />
+          <span>全部標為已讀</span>
         </button>
       </div>
 
-      {/* 溫度閾值設定 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-          <AlertTriangle className="w-5 h-5 mr-2 text-orange-600" />
-          溫度告警閾值
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              高溫警報 (°C)
-            </label>
-            <input
-              type="number"
-              value={settings.tempHigh}
-              onChange={(e) => setSettings({ ...settings, tempHigh: Number(e.target.value) })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              min="20"
-              max="40"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              當溫度超過此值時發送告警
-            </p>
+      {/* KPI strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        {[
+          { label: '目前待處理', value: activeOpen.length, tone: 'crimson' },
+          { label: '嚴重告警', value: open.filter(a => ['critical', 'high'].includes(a.level || a.type)).length, tone: 'amber' },
+          { label: '歷史記錄', value: history.length, tone: 'sky' },
+          { label: '已解決', value: dismissed.size, tone: 'sage' },
+        ].map((kpi, i) => (
+          <GlassCard key={i} style={{ padding: 20 }}>
+            <div className="t-label" style={{ marginBottom: 10 }}>{kpi.label}</div>
+            <div className="kpi-value" style={{ fontSize: 32, color: `var(--${kpi.tone})` }}>{kpi.value}</div>
+          </GlassCard>
+        ))}
+      </div>
+
+      <SeverityBar open={open} history={history} />
+
+      {/* Active alerts */}
+      {open.length > 0 && (
+        <div className="col" style={{ gap: 10 }}>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div className="t-display" style={{ fontSize: 16 }}>
+              <span style={{ color: 'var(--crimson)', marginRight: 8 }}>●</span>待處理警報
+            </div>
+            <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{activeOpen.length} 則</div>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              低溫警報 (°C)
-            </label>
-            <input
-              type="number"
-              value={settings.tempLow}
-              onChange={(e) => setSettings({ ...settings, tempLow: Number(e.target.value) })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              min="15"
-              max="30"
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              當溫度低於此值時發送告警
-            </p>
-          </div>
+          <GlassCard>
+            {open.map(alert => (
+              <AlertRow key={alert.id} alert={alert} onAck={handleAck} dismissed={dismissed.has(alert.id)} />
+            ))}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* Filter + History */}
+      <div className="row" style={{ justifyContent: 'space-between' }}>
+        <Tabs>
+          <Tab active={filter === 'all'} onClick={() => setFilter('all')}>全部</Tab>
+          <Tab active={filter === 'high'} onClick={() => setFilter('high')}>嚴重</Tab>
+          <Tab active={filter === 'mid'} onClick={() => setFilter('mid')}>一般</Tab>
+          <Tab active={filter === 'low'} onClick={() => setFilter('low')}>輕微</Tab>
+        </Tabs>
+        <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+          {filteredHistory.length} / {history.length} 則
         </div>
       </div>
 
-      {/* Email通知 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Mail className="w-5 h-5 mr-2 text-blue-600" />
-            Email 通知
-          </h2>
-          <button
-            onClick={() => setSettings({ ...settings, emailEnabled: !settings.emailEnabled })}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              settings.emailEnabled ? 'bg-blue-600' : 'bg-gray-200'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                settings.emailEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-        {settings.emailEnabled && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Email 地址
-              </label>
-              <input
-                type="email"
-                value={settings.email}
-                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="your@email.com"
-              />
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, alignItems: 'flex-start' }}>
+        {/* History list */}
+        <GlassCard>
+          {filteredHistory.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink-3)', fontSize: 13 }}>
+              <Icon name="check" size={32} style={{ color: 'var(--sage)', display: 'block', margin: '0 auto 12px' }} />
+              過去 24 小時無警報
             </div>
-            <button
-              onClick={() => handleTest('Email')}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              發送測試郵件
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Line通知 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <MessageSquare className="w-5 h-5 mr-2 text-green-600" />
-            Line Notify
-          </h2>
-          <button
-            onClick={() => setSettings({ ...settings, lineEnabled: !settings.lineEnabled })}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              settings.lineEnabled ? 'bg-blue-600' : 'bg-gray-200'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                settings.lineEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-        {settings.lineEnabled && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Line Token
-              </label>
-              <input
-                type="password"
-                value={settings.lineToken}
-                onChange={(e) => setSettings({ ...settings, lineToken: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="請輸入 Line Notify Token"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                從 <a href="https://notify-bot.line.me/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Line Notify</a> 取得 Token
-              </p>
-            </div>
-            <button
-              onClick={() => handleTest('Line')}
-              disabled={!settings.lineToken}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              發送測試訊息
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Telegram通知 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <MessageSquare className="w-5 h-5 mr-2 text-blue-500" />
-            Telegram Bot
-          </h2>
-          <button
-            onClick={() => setSettings({ ...settings, telegramEnabled: !settings.telegramEnabled })}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              settings.telegramEnabled ? 'bg-blue-600' : 'bg-gray-200'
-            }`}
-          >
-            <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                settings.telegramEnabled ? 'translate-x-6' : 'translate-x-1'
-              }`}
-            />
-          </button>
-        </div>
-        {settings.telegramEnabled && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bot Token
-              </label>
-              <input
-                type="password"
-                value={settings.telegramToken}
-                onChange={(e) => setSettings({ ...settings, telegramToken: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="請輸入 Bot Token"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Chat ID
-              </label>
-              <input
-                type="text"
-                value={settings.telegramChatId}
-                onChange={(e) => setSettings({ ...settings, telegramChatId: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="請輸入 Chat ID"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                透過 <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">@userinfobot</a> 取得您的 Chat ID
-              </p>
-            </div>
-            <button
-              onClick={() => handleTest('Telegram')}
-              disabled={!settings.telegramToken || !settings.telegramChatId}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-              發送測試訊息
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* 告警历史 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Bell className="w-5 h-5 mr-2 text-purple-600" />
-            告警歷史
-            {alerts.length > 0 && (
-              <span className="ml-2 px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                {alerts.length} 條記錄
-              </span>
-            )}
-          </h2>
-          <button
-            onClick={loadAlerts}
-            disabled={refreshing}
-            className="flex items-center space-x-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            <span>刷新</span>
-          </button>
-        </div>
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="text-gray-600 mt-2">載入中...</p>
-          </div>
-        ) : alerts.length === 0 ? (
-          <div className="text-center py-8">
-            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
-            <p className="text-gray-600">目前沒有告警記錄</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className={`flex items-start justify-between p-4 border rounded-lg ${getAlertColor(alert.type)} ${
-                  alert.resolved ? 'opacity-60' : ''
-                }`}
-              >
-                <div className="flex items-start space-x-3">
-                  {getAlertIcon(alert.type)}
-                  <div>
-                    <p className="font-medium text-gray-900">{alert.message}</p>
-                    <p className="text-sm text-gray-600 mt-1">{alert.time}</p>
-                    {alert.details && (
-                      <p className="text-xs text-gray-500 mt-1">{alert.details}</p>
-                    )}
+          ) : filteredHistory.map((alert, i) => {
+            const tone = alertTone(alert.level || alert.type);
+            return (
+              <div key={alert.id ?? i} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '12px 18px',
+                borderBottom: i < filteredHistory.length - 1 ? '1px solid var(--glass-border)' : 'none',
+              }}>
+                <Dot tone={tone} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {alert.message || alert.description || '系統事件'}
+                  </div>
+                  <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>
+                    {alert.created_at ? new Date(alert.created_at).toLocaleString('zh-TW') : '--'}
                   </div>
                 </div>
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
-                  alert.resolved 
-                    ? 'bg-green-100 text-green-800' 
-                    : alert.type === 'critical'
-                    ? 'bg-red-100 text-red-800'
-                    : alert.type === 'error'
-                    ? 'bg-orange-100 text-orange-800'
-                    : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {alert.resolved ? '已解決' : '進行中'}
-                </span>
+                <Pill tone={tone}>
+                  {tone === 'crimson' ? '嚴重' : tone === 'amber' ? '一般' : '輕微'}
+                </Pill>
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </GlassCard>
+
+        {/* Charts */}
+        <div className="col" style={{ gap: 16 }}>
+          <HeatmapBar alerts={[...open, ...history]} />
+          <SourceDonut alerts={[...open, ...history]} tanks={tanks} />
+        </div>
       </div>
     </div>
   );
-};
-
-export default Alerts;
+}

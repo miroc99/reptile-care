@@ -31,7 +31,6 @@ class RelayChannelUpdate(BaseModel):
 
 class RelayControlRequest(BaseModel):
     state: bool
-    manual: bool = True
 
 
 class RelayResponse(BaseModel):
@@ -147,7 +146,7 @@ async def control_relay(
     
     # 更新資料庫
     relay.current_state = control.state
-    relay.manual_override = control.manual
+    relay.manual_override = False
     relay.updated_at = datetime.utcnow()
     session.add(relay)
     
@@ -155,7 +154,7 @@ async def control_relay(
     event = EventLog(
         event_type="relay_control",
         severity="info",
-        message=f"繼電器 {relay.name} (CH{relay.channel}) {'手動' if control.manual else '自動'}設為 {'ON' if control.state else 'OFF'}",
+        message=f"繼電器 {relay.name} (CH{relay.channel}) 設為 {'ON' if control.state else 'OFF'}",
         related_entity_type="relay",
         related_entity_id=relay.id
     )
@@ -192,7 +191,7 @@ async def toggle_relay(relay_id: int, session: Session = Depends(get_session)):
     
     # 更新資料庫
     relay.current_state = new_state
-    relay.manual_override = True
+    relay.manual_override = False
     relay.updated_at = datetime.utcnow()
     session.add(relay)
     session.commit()
@@ -337,16 +336,16 @@ async def sync_schedule_states(session: Session = Depends(get_session)):
     relays = session.exec(select(RelayChannel)).all()
     
     for relay in relays:
-        # 只更新非手動覆寫模式且已啟用的繼電器
-        if not relay.manual_override and relay.enabled:
+        if relay.enabled:
             target_state = relay_states.get(relay.id, False)
-            
+
             if relay.current_state != target_state:
                 # 更新硬體狀態
                 success = await controller.set_relay(relay.channel, target_state)
-                
+
                 if success:
                     relay.current_state = target_state
+                    relay.manual_override = False
                     relay.updated_at = datetime.utcnow()
                     session.add(relay)
                     updated_count += 1

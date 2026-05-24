@@ -81,8 +81,7 @@ class DeviceControlService:
         if relay:
             relay.current_state = state
             relay.updated_at = datetime.utcnow()
-            if manual:
-                relay.manual_override = True
+            relay.manual_override = False
             self.db.add(relay)
             self.db.commit()
         
@@ -136,8 +135,7 @@ class DeviceControlService:
         stmt = select(RelayChannel).where(
             RelayChannel.tank_id == tank_id,
             RelayChannel.device_type == "heating",
-            RelayChannel.enabled == True,
-            RelayChannel.manual_override == False
+            RelayChannel.enabled == True
         )
         heating_relays = self.db.exec(stmt).all()
         
