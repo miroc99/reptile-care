@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import GlassCard from '../components/ui/GlassCard';
 import Pill from '../components/ui/Pill';
@@ -48,11 +49,12 @@ function deviceTone(type) {
 }
 
 function ControlPanel({ relays, onToggle }) {
+  const isMobile = useIsMobile();
   if (!relays.length) {
     return <div style={{ color: 'var(--ink-3)', textAlign: 'center', padding: '32px 0' }}>此飼養缸無設備</div>;
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 14 }}>
       {relays.map(relay => {
         const tone = deviceTone(relay.device_type);
         const icon = deviceIcon(relay.device_type);
@@ -151,6 +153,7 @@ function SchedulePanel({ schedules, relays }) {
 }
 
 function AlertsPanel({ tank }) {
+  const isMobile = useIsMobile();
   const tLo = tank.target_temp_min ?? 24;
   const tHi = tank.target_temp_max ?? 32;
   const hLo = tank.target_hum_min ?? 40;
@@ -164,7 +167,7 @@ function AlertsPanel({ tank }) {
   ];
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.6fr 1fr', gap: 14 }}>
       <GlassCard style={{ padding: 22 }}>
         <div className="t-label" style={{ marginBottom: 16 }}>溫濕度門檻</div>
         <div className="col" style={{ gap: 16 }}>
@@ -249,6 +252,7 @@ function TwoLineChart({ history, tLo, tHi }) {
 export default function TankDetail() {
   const { tankId } = useParams();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [tank, setTank] = useState(null);
   const [temp, setTemp] = useState(null);
   const [hum, setHum] = useState(null);
@@ -355,7 +359,7 @@ export default function TankDetail() {
       </GlassCard>
 
       {/* Gauges + Chart */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1.4fr', gap: 16 }}>
         {/* Temp gauge */}
         <GlassCard style={{ padding: 22, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
           <ArcGauge

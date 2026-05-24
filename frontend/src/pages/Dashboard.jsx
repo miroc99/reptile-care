@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useIsMobile } from '../hooks/useIsMobile';
 import GlassCard from '../components/ui/GlassCard';
 import Pill from '../components/ui/Pill';
 import Dot from '../components/ui/Dot';
@@ -298,6 +299,7 @@ function UpcomingCard({ schedules, tanks }) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [tanks, setTanks] = useState([]);
   const [relays, setRelays] = useState([]);
   const [alerts, setAlerts] = useState([]);
@@ -366,7 +368,7 @@ export default function Dashboard() {
   return (
     <div className="col gap-5">
       {/* KPI Hero Strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr 1fr 1fr', gap: 16 }}>
         <ClimateHero tanks={tanks} />
         <KpiCard
           label="飼養缸"
@@ -402,7 +404,7 @@ export default function Dashboard() {
             尚未建立任何飼養缸
           </GlassCard>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16 }}>
             {tanks.map((tank, i) => (
               <TankTile
                 key={tank.id}
@@ -417,7 +419,7 @@ export default function Dashboard() {
       </div>
 
       {/* Activity + Upcoming */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: 16 }}>
         <ActivityCard events={events} />
         <UpcomingCard schedules={schedules} tanks={tanks} />
       </div>

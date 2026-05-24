@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useIsMobile } from '../hooks/useIsMobile';
 import GlassCard from '../components/ui/GlassCard';
 import Pill from '../components/ui/Pill';
 import Dot from '../components/ui/Dot';
@@ -241,6 +242,7 @@ function NetworkSection() {
 }
 
 export default function Settings() {
+  const isMobile = useIsMobile();
   const [section, setSection] = useState('relays');
   const [relays, setRelays] = useState([]);
   const [tanks, setTanks] = useState([]);
@@ -292,7 +294,7 @@ export default function Settings() {
       </div>
 
       {/* Two-column: sidebar + content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '220px 1fr', gap: 16, alignItems: 'flex-start' }}>
         {/* Sidebar */}
         <GlassCard style={{ padding: 10 }}>
           <div className="col" style={{ gap: 2 }}>

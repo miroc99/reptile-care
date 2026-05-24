@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import GlassCard from '../components/ui/GlassCard';
 import Pill from '../components/ui/Pill';
@@ -161,6 +162,7 @@ function SourceDonut({ alerts, tanks }) {
 }
 
 export default function Alerts() {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState([]);
   const [history, setHistory] = useState([]);
   const [tanks, setTanks] = useState([]);
@@ -220,7 +222,7 @@ export default function Alerts() {
       </div>
 
       {/* KPI strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16 }}>
         {[
           { label: '目前待處理', value: activeOpen.length, tone: 'crimson' },
           { label: '嚴重告警', value: open.filter(a => ['critical', 'high'].includes(a.level || a.type)).length, tone: 'amber' },
@@ -266,7 +268,7 @@ export default function Alerts() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16, alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.6fr 1fr', gap: 16, alignItems: 'flex-start' }}>
         {/* History list */}
         <GlassCard>
           {filteredHistory.length === 0 ? (

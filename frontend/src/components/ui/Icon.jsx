@@ -52,6 +52,8 @@ export default function Icon({ name, size = 18, stroke = 1.6, style, className }
       return <svg {...common}><path d="M5 12l5 5L20 7"/></svg>;
     case 'tool':
       return <svg {...common}><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5 2.5-2.5Z"/></svg>;
+    case 'x':
+      return <svg {...common}><path d="M18 6 6 18M6 6l12 12"/></svg>;
     case 'lizard':
       return <svg {...common} fill="currentColor" stroke="none"><path d="M3 12c0-2 2-3 4-2 1-2 4-2 5 0 2-2 6-1 7 2 1 0 2 1 2 2s-1 2-2 2c-1 1-3 2-5 2-1 1-4 1-5-1-2 0-4-2-4-3-1 0-2-1-2-2Z" opacity=".9"/></svg>;
     default: return null;

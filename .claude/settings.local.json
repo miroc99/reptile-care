@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Get-ChildItem -Path \"G:\\\\Dev\\\\reptile_care_sys\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if \\($_.PSIsContainer\\) {\"DIR\"} else {\"FILE\"}}})"
+      "PowerShell(Get-ChildItem -Path \"G:\\\\Dev\\\\reptile_care_sys\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if \\($_.PSIsContainer\\) {\"DIR\"} else {\"FILE\"}}})",
+      "Bash(npm run *)"
     ]
   }
 }

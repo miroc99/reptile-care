@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import Icon from './ui/Icon';
 import Dot from './ui/Dot';
 import IconBtn from './ui/IconBtn';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 const NAV_ITEMS = [
   { label: '儀表板', path: '/',         icon: 'dashboard' },
@@ -20,10 +21,12 @@ function useNow() {
   return now;
 }
 
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const now = useNow();
+  const isMobile = useIsMobile();
   const [tanks, setTanks] = useState([]);
   const [tankTemps, setTankTemps] = useState({});
 
@@ -59,6 +62,57 @@ export default function Layout() {
   }, [tanks]);
 
   const TONE_MAP = ['amber', 'sage', 'sky', 'violet', 'crimson', 'amber'];
+
+  if (isMobile) {
+    return (
+      <div className="app-root" style={{ display: 'flex', flexDirection: 'column', height: '100dvh', position: 'relative', overflow: 'hidden' }}>
+        <main className="mobile-scroll" style={{
+          flex: 1,
+          overflowY: 'auto',
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)',
+          paddingBottom: 'calc(72px + env(safe-area-inset-bottom, 16px))',
+          paddingLeft: 16,
+          paddingRight: 16,
+        }}>
+          <Outlet />
+        </main>
+
+        {/* Bottom tab bar */}
+        <nav style={{
+          position: 'fixed',
+          left: 12, right: 12,
+          bottom: 'calc(14px + env(safe-area-inset-bottom, 0px))',
+          borderRadius: 24,
+          background: 'rgba(20, 16, 12, 0.85)',
+          backdropFilter: 'blur(24px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+          border: '1px solid var(--glass-border)',
+          padding: '8px 6px',
+          display: 'flex',
+          justifyContent: 'space-around',
+          zIndex: 50,
+        }}>
+          {NAV_ITEMS.map(item => {
+            const active = isActive(item.path);
+            return (
+              <Link key={item.path} to={item.path} style={{ textDecoration: 'none' }}>
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                  padding: '6px 10px',
+                  color: active ? 'var(--amber)' : 'var(--ink-3)',
+                  cursor: 'pointer',
+                  transition: 'color 160ms',
+                }}>
+                  <Icon name={item.icon} size={20} />
+                  <div style={{ fontSize: 9, fontWeight: 500 }}>{item.label}</div>
+                </div>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+    );
+  }
 
   return (
     <div className="app-root" style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useIsMobile } from '../hooks/useIsMobile';
 import GlassCard from '../components/ui/GlassCard';
 import Pill from '../components/ui/Pill';
 import Dot from '../components/ui/Dot';
@@ -17,6 +18,244 @@ function deviceTone(type) {
 
 const HOURS = [0, 4, 8, 12, 16, 20, 24];
 
+// ── 新增排程 Modal ──────────────────────────────────────────
+const SCHED_TYPES = [
+  { value: 'daily',       label: '每日固定時段' },
+  { value: 'weekly',      label: '每週指定天' },
+  { value: 'cron',        label: 'Cron 表達式' },
+  { value: 'temperature', label: '溫度控制' },
+];
+// 後端用 Python weekday(): 0=週一, 6=週日，需與此順序對齊
+const DOW_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
+
+function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
+  const [form, setForm] = useState({
+    name: '',
+    relay_channel_id: relays[0]?.id ?? '',
+    schedule_type: 'daily',
+    start_time: '08:00',
+    end_time: '20:00',
+    days_of_week: '',
+    cron_expression: '',
+    temp_low: '',
+    temp_high: '',
+    priority: 0,
+  });
+  const [dow, setDow] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
+
+  function toggleDow(d) {
+    setDow(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.name.trim()) { setError('請填寫排程名稱'); return; }
+    if (!form.relay_channel_id) { setError('請選擇繼電器通道'); return; }
+
+    const body = {
+      name: form.name.trim(),
+      relay_channel_id: Number(form.relay_channel_id),
+      schedule_type: form.schedule_type,
+      priority: Number(form.priority) || 0,
+    };
+
+    if (form.schedule_type === 'daily' || form.schedule_type === 'weekly') {
+      body.start_time = form.start_time;
+      body.end_time   = form.end_time;
+    }
+    if (form.schedule_type === 'weekly') {
+      body.days_of_week = dow.join(',') || '0,1,2,3,4,5,6';
+    }
+    if (form.schedule_type === 'cron') {
+      if (!form.cron_expression.trim()) { setError('請填寫 Cron 表達式'); return; }
+      body.cron_expression = form.cron_expression.trim();
+    }
+    if (form.schedule_type === 'temperature') {
+      body.temp_low  = form.temp_low  !== '' ? Number(form.temp_low)  : null;
+      body.temp_high = form.temp_high !== '' ? Number(form.temp_high) : null;
+    }
+
+    setSaving(true);
+    setError('');
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `HTTP ${res.status}`);
+      }
+      const created = await res.json();
+      onCreated(created);
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box',
+    background: 'rgba(255,255,255,0.06)',
+    border: '1px solid var(--glass-border)',
+    borderRadius: 8, color: 'var(--ink-1)',
+    padding: '8px 12px', fontSize: 13,
+    outline: 'none',
+  };
+  const labelStyle = { fontSize: 11, color: 'var(--ink-3)', marginBottom: 5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 999,
+      background: 'rgba(10,8,6,0.72)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 480, maxHeight: '88vh', overflowY: 'auto' }}>
+        <GlassCard style={{ padding: 28 }}>
+          <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+            <div className="t-display" style={{ fontSize: 18 }}>新增排程</div>
+            <button className="iconbtn" onClick={onClose} style={{ width: 30, height: 30, color: 'var(--ink-3)' }}>
+              <Icon name="x" size={14} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="col" style={{ gap: 18 }}>
+            {/* 排程名稱 */}
+            <div>
+              <label style={labelStyle}>排程名稱 *</label>
+              <input style={inputStyle} value={form.name} onChange={e => set('name', e.target.value)} placeholder="例：日間加熱燈" />
+            </div>
+
+            {/* 繼電器通道 */}
+            <div>
+              <label style={labelStyle}>繼電器通道 *</label>
+              <select style={inputStyle} value={form.relay_channel_id} onChange={e => set('relay_channel_id', e.target.value)}>
+                {relays.map(r => {
+                  const tank = tanks.find(t => t.id === r.tank_id);
+                  return (
+                    <option key={r.id} value={r.id}>
+                      CH{r.channel} – {r.name || `通道 ${r.channel}`}
+                      {tank ? ` (${tank.name})` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* 排程類型 */}
+            <div>
+              <label style={labelStyle}>排程類型</label>
+              <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
+                {SCHED_TYPES.map(t => (
+                  <div key={t.value} onClick={() => set('schedule_type', t.value)} style={{
+                    cursor: 'pointer', fontSize: 12, padding: '6px 12px', borderRadius: 999,
+                    background: form.schedule_type === t.value ? 'color-mix(in oklch, var(--amber) 22%, transparent)' : 'rgba(255,255,255,0.04)',
+                    color: form.schedule_type === t.value ? 'var(--amber)' : 'var(--ink-3)',
+                    border: '1px solid var(--glass-border)', transition: 'all 160ms',
+                  }}>{t.label}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* 每日 / 每週：時間 */}
+            {(form.schedule_type === 'daily' || form.schedule_type === 'weekly') && (
+              <div className="row gap-4">
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>開始時間</label>
+                  <input type="time" style={inputStyle} value={form.start_time} onChange={e => set('start_time', e.target.value)} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>結束時間</label>
+                  <input type="time" style={inputStyle} value={form.end_time} onChange={e => set('end_time', e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            {/* 每週：星期選擇 */}
+            {form.schedule_type === 'weekly' && (
+              <div>
+                <label style={labelStyle}>執行星期（空選 = 每天）</label>
+                <div className="row gap-2">
+                  {DOW_LABELS.map((d, i) => (
+                    <div key={i} onClick={() => toggleDow(i)} style={{
+                      width: 32, height: 32, borderRadius: 8, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 500,
+                      background: dow.includes(i) ? 'color-mix(in oklch, var(--amber) 22%, transparent)' : 'rgba(255,255,255,0.04)',
+                      color: dow.includes(i) ? 'var(--amber)' : 'var(--ink-3)',
+                      border: `1px solid ${dow.includes(i) ? 'var(--amber)' : 'var(--glass-border)'}`,
+                      transition: 'all 160ms',
+                    }}>{d}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cron */}
+            {form.schedule_type === 'cron' && (
+              <div>
+                <label style={labelStyle}>Cron 表達式</label>
+                <input style={inputStyle} value={form.cron_expression} onChange={e => set('cron_expression', e.target.value)} placeholder="0 8 * * *" />
+                <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
+                  格式：分 時 日 月 星期（例：0 8 * * 1-5 = 週一至週五早上 8 點）
+                </div>
+              </div>
+            )}
+
+            {/* 溫度控制 */}
+            {form.schedule_type === 'temperature' && (
+              <div className="row gap-4">
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>觸發低溫 (°C)</label>
+                  <input type="number" step="0.1" style={inputStyle} value={form.temp_low} onChange={e => set('temp_low', e.target.value)} placeholder="例：22.0" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>觸發高溫 (°C)</label>
+                  <input type="number" step="0.1" style={inputStyle} value={form.temp_high} onChange={e => set('temp_high', e.target.value)} placeholder="例：30.0" />
+                </div>
+              </div>
+            )}
+
+            {/* 優先級 */}
+            <div>
+              <label style={labelStyle}>優先級（數字越大越優先）</label>
+              <input type="number" min="0" style={{ ...inputStyle, width: 100 }} value={form.priority} onChange={e => set('priority', e.target.value)} />
+            </div>
+
+            {/* 錯誤訊息 */}
+            {error && (
+              <div style={{ fontSize: 12, color: 'var(--crimson)', background: 'rgba(255,60,60,0.08)', borderRadius: 8, padding: '8px 12px' }}>
+                {error}
+              </div>
+            )}
+
+            {/* 按鈕列 */}
+            <div className="row gap-3" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
+              <button type="button" className="iconbtn" onClick={onClose}
+                style={{ width: 'auto', padding: '0 16px', height: 36, color: 'var(--ink-3)', fontSize: 13 }}>
+                取消
+              </button>
+              <button type="submit" disabled={saving} className="iconbtn"
+                style={{ width: 'auto', padding: '0 20px', height: 36, gap: 6, background: 'color-mix(in oklch, var(--amber) 18%, transparent)', color: 'var(--amber)', fontSize: 13, border: '1px solid var(--amber)', opacity: saving ? 0.6 : 1 }}>
+                <Icon name="plus" size={13} />
+                {saving ? '建立中…' : '建立排程'}
+              </button>
+            </div>
+          </form>
+        </GlassCard>
+      </div>
+    </div>
+  );
+}
+
+// ── 時間軸日視圖 ────────────────────────────────────────────
 function ScheduleDayView({ tanks, relays, schedules }) {
   const now = new Date();
   const nowFrac = (now.getHours() * 60 + now.getMinutes()) / 1440;
@@ -24,7 +263,6 @@ function ScheduleDayView({ tanks, relays, schedules }) {
 
   return (
     <GlassCard style={{ padding: 22 }}>
-      {/* Hour ruler */}
       <div style={{ display: 'flex', marginLeft: 180, marginBottom: 14, position: 'relative' }}>
         <div style={{ flex: 1, position: 'relative', height: 20 }}>
           {HOURS.map(h => (
@@ -79,8 +317,8 @@ function ScheduleDayView({ tanks, relays, schedules }) {
                 const [sh, sm] = (s.start_time || '00:00').split(':').map(Number);
                 const [eh, em] = (s.end_time || '23:59').split(':').map(Number);
                 const startF = (sh * 60 + (sm || 0)) / 1440;
-                const endF = (eh * 60 + (em || 0)) / 1440;
-                const label = relay?.label || relay?.name || s.name || '設備';
+                const endF   = (eh * 60 + (em || 0)) / 1440;
+                const label  = relay?.label || relay?.name || s.name || '設備';
 
                 return (
                   <div key={s.id} className="row gap-3">
@@ -123,12 +361,13 @@ function ScheduleDayView({ tanks, relays, schedules }) {
   );
 }
 
+// ── 週密度熱圖 ──────────────────────────────────────────────
 function WeekDensityView({ schedules }) {
   const days = ['日', '一', '二', '三', '四', '五', '六'];
   const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
   schedules.forEach(s => {
     if (!s.start_time) return;
-    const [h] = s.start_time.split(':').map(Number);
+    const [h]  = s.start_time.split(':').map(Number);
     const [eh] = (s.end_time || '00:00').split(':').map(Number);
     for (let hour = Math.min(h, 23); hour <= Math.min(eh, 23); hour++) {
       const dow = (s.schedule_type === 'weekly' && s.day_of_week != null) ? s.day_of_week : -1;
@@ -175,13 +414,14 @@ function WeekDensityView({ schedules }) {
   );
 }
 
+// ── 即將執行列表 ────────────────────────────────────────────
 function UpcomingList({ schedules, tanks }) {
-  const now = new Date();
+  const now    = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const toneByType = { daily: 'amber', weekly: 'violet', cron: 'sky', temperature: 'crimson' };
 
   const upcoming = schedules
-    .filter(s => s.is_enabled && s.start_time)
+    .filter(s => s.active && s.start_time)
     .map(s => {
       const [h, m] = (s.start_time || '00:00').split(':').map(Number);
       const sMin = h * 60 + (m || 0);
@@ -226,13 +466,16 @@ function UpcomingList({ schedules, tanks }) {
   );
 }
 
+// ── 主頁面 ──────────────────────────────────────────────────
 export default function Schedule() {
-  const [tanks, setTanks] = useState([]);
-  const [relays, setRelays] = useState([]);
+  const isMobile = useIsMobile();
+  const [tanks, setTanks]         = useState([]);
+  const [relays, setRelays]       = useState([]);
   const [schedules, setSchedules] = useState([]);
-  const [view, setView] = useState('today');
+  const [view, setView]           = useState('today');
   const [filterTank, setFilterTank] = useState('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -247,11 +490,15 @@ export default function Schedule() {
     }).catch(() => setLoading(false));
   }, []);
 
+  function handleCreated(newSched) {
+    setSchedules(prev => [...prev, newSched]);
+  }
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
 
-  const visibleTanks = filterTank === 'all' ? tanks : tanks.filter(t => String(t.id) === filterTank);
-  const enabledSchedules = schedules.filter(s => s.is_enabled);
+  const visibleTanks    = filterTank === 'all' ? tanks : tanks.filter(t => String(t.id) === filterTank);
+  const enabledSchedules = schedules.filter(s => s.active);
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 60, color: 'var(--ink-3)' }}>載入中…</div>;
@@ -259,6 +506,16 @@ export default function Schedule() {
 
   return (
     <div className="col gap-5">
+      {/* 新增排程 Modal */}
+      {showModal && (
+        <CreateScheduleModal
+          relays={relays}
+          tanks={tanks}
+          onClose={() => setShowModal(false)}
+          onCreated={handleCreated}
+        />
+      )}
+
       {/* Header */}
       <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
         <div className="col" style={{ gap: 4 }}>
@@ -270,7 +527,12 @@ export default function Schedule() {
             <Tab active={view === 'today'} onClick={() => setView('today')}>今日</Tab>
             <Tab active={view === 'week'} onClick={() => setView('week')}>本週</Tab>
           </Tabs>
-          <button className="iconbtn" style={{ width: 'auto', padding: '0 14px', gap: 6, color: 'var(--amber)' }} title="新增排程">
+          <button
+            className="iconbtn"
+            style={{ width: 'auto', padding: '0 14px', gap: 6, color: 'var(--amber)' }}
+            onClick={() => setShowModal(true)}
+            title="新增排程"
+          >
             <Icon name="plus" size={14} />
             <span style={{ fontSize: 13 }}>新增排程</span>
           </button>
@@ -278,12 +540,12 @@ export default function Schedule() {
       </div>
 
       {/* Stats strip */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 16 }}>
         {[
-          { label: '今日排程', value: enabledSchedules.length, unit: '項', tone: 'amber' },
-          { label: '目前運行', value: relays.filter(r => r.current_state && r.enabled).length, unit: '件', tone: 'sage' },
-          { label: '已停用', value: schedules.filter(s => !s.is_enabled).length, unit: '項', tone: 'amber' },
-          { label: '自動化設備', value: relays.filter(r => enabledSchedules.some(s => s.relay_channel_id === r.id)).length, unit: '個', tone: 'sky' },
+          { label: '今日排程',   value: enabledSchedules.length,                                                    unit: '項', tone: 'amber' },
+          { label: '目前運行',   value: relays.filter(r => r.current_state && r.enabled).length,                   unit: '件', tone: 'sage'  },
+          { label: '已停用',     value: schedules.filter(s => !s.active).length,                                   unit: '項', tone: 'amber' },
+          { label: '自動化設備', value: relays.filter(r => enabledSchedules.some(s => s.relay_channel_id === r.id)).length, unit: '個', tone: 'sky'   },
         ].map((kpi, i) => (
           <GlassCard key={i} style={{ padding: 20 }}>
             <div className="t-label" style={{ marginBottom: 10 }}>{kpi.label}</div>
@@ -297,7 +559,15 @@ export default function Schedule() {
 
       {/* Tank filter chips */}
       <div className="row gap-2">
-        <div className={`tab${filterTank === 'all' ? ' active' : ''}`} onClick={() => setFilterTank('all')} style={{ cursor: 'pointer', fontSize: 12, padding: '6px 12px', borderRadius: 999, background: filterTank === 'all' ? 'color-mix(in oklch, var(--amber) 20%, transparent)' : 'rgba(255,255,255,0.04)', color: filterTank === 'all' ? 'var(--amber)' : 'var(--ink-3)', border: '1px solid var(--glass-border)', transition: 'all 160ms' }}>
+        <div
+          onClick={() => setFilterTank('all')}
+          style={{
+            cursor: 'pointer', fontSize: 12, padding: '6px 12px', borderRadius: 999,
+            background: filterTank === 'all' ? 'color-mix(in oklch, var(--amber) 20%, transparent)' : 'rgba(255,255,255,0.04)',
+            color: filterTank === 'all' ? 'var(--amber)' : 'var(--ink-3)',
+            border: '1px solid var(--glass-border)', transition: 'all 160ms',
+          }}
+        >
           所有飼養缸
         </div>
         {tanks.map(t => (
@@ -318,19 +588,19 @@ export default function Schedule() {
 
       {/* Day / Week view */}
       {view === 'today' && <ScheduleDayView tanks={visibleTanks} relays={relays} schedules={enabledSchedules} />}
-      {view === 'week' && <WeekDensityView schedules={enabledSchedules} />}
+      {view === 'week'  && <WeekDensityView schedules={enabledSchedules} />}
 
       {/* Bottom: Upcoming + Legend */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: 16 }}>
         <UpcomingList schedules={enabledSchedules} tanks={tanks} />
         <GlassCard style={{ padding: 22 }}>
           <div className="t-label" style={{ marginBottom: 14 }}>設備顏色圖例</div>
           <div className="col" style={{ gap: 10 }}>
             {[
-              { tone: 'amber', label: '加熱 / 溫控', icon: 'sun' },
-              { tone: 'violet', label: 'UVB / 照明', icon: 'lightbulb' },
-              { tone: 'sky', label: '噴霧 / 加濕', icon: 'mist' },
-              { tone: 'sage', label: '通風 / 風扇', icon: 'fan' },
+              { tone: 'amber',  label: '加熱 / 溫控', icon: 'sun'      },
+              { tone: 'violet', label: 'UVB / 照明',  icon: 'lightbulb' },
+              { tone: 'sky',    label: '噴霧 / 加濕', icon: 'mist'     },
+              { tone: 'sage',   label: '通風 / 風扇', icon: 'fan'      },
             ].map(item => (
               <div key={item.tone} className="row gap-3">
                 <div style={{
