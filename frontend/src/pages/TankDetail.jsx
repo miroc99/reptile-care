@@ -156,8 +156,8 @@ function AlertsPanel({ tank }) {
   const isMobile = useIsMobile();
   const tLo = tank.target_temp_min ?? 24;
   const tHi = tank.target_temp_max ?? 32;
-  const hLo = tank.target_hum_min ?? 40;
-  const hHi = tank.target_hum_max ?? 70;
+  const hLo = tank.target_humidity_min ?? 40;
+  const hHi = tank.target_humidity_max ?? 70;
 
   const thresholds = [
     { icon: 'thermometer', label: '溫度下限', value: tLo, min: 15, max: 40, tone: 'sky', unit: '°C' },
@@ -196,20 +196,211 @@ function AlertsPanel({ tank }) {
       </GlassCard>
       <GlassCard style={{ padding: 22 }}>
         <div className="t-label" style={{ marginBottom: 16 }}>通知管道</div>
-        <div className="col" style={{ gap: 14 }}>
-          {[
-            { label: '推送通知', status: '未設定', on: false },
-            { label: '電子郵件', status: '未設定', on: false },
-            { label: 'LINE 通知', status: '未設定', on: false },
-          ].map((ch, i) => (
-            <div key={i} className="row" style={{ justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontSize: 13, color: 'var(--ink-2)' }}>{ch.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>{ch.status}</div>
+        <div className="col gap-3" style={{ alignItems: 'center', padding: '12px 0' }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 12,
+            background: 'color-mix(in oklch, var(--amber) 10%, transparent)',
+            color: 'var(--amber)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon name="bell" size={18} />
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 4 }}>通知功能開發中</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>推播、Email、LINE 通知即將推出</div>
+          </div>
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
+
+const INP = {
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid var(--glass-border)',
+  borderRadius: 10,
+  padding: '9px 13px',
+  color: 'var(--ink-1)',
+  fontSize: 14,
+  fontFamily: 'var(--font-tc)',
+  outline: 'none',
+  width: '100%',
+};
+const NUM_INP = { ...INP, width: 88, textAlign: 'center' };
+
+function EditTankModal({ tank, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: tank.name || '',
+    description: tank.description || '',
+    image_url: tank.image_url || null,
+    target_temp_min: tank.target_temp_min ?? 24,
+    target_temp_max: tank.target_temp_max ?? 32,
+    target_humidity_min: tank.target_humidity_min ?? 40,
+    target_humidity_max: tank.target_humidity_max ?? 70,
+  });
+  const [imagePreview, setImagePreview] = useState(tank.image_url || null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (key) => (e) => {
+    const val = e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+    setForm(f => ({ ...f, [key]: val }));
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('圖片大小不能超過 5MB'); return; }
+    if (!file.type.startsWith('image/')) { setError('請上傳圖片檔案'); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setForm(f => ({ ...f, image_url: reader.result }));
+      setImagePreview(reader.result);
+      setError('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setForm(f => ({ ...f, image_url: null }));
+    setImagePreview(null);
+  };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setError('名稱不能空白'); return; }
+    if (form.target_temp_min >= form.target_temp_max) { setError('溫度下限必須低於上限'); return; }
+    if (form.target_humidity_min >= form.target_humidity_max) { setError('濕度下限必須低於上限'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const r = await fetch(`/api/tanks/${tank.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (!r.ok) throw new Error('儲存失敗，請再試一次');
+      onSave(await r.json());
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    }
+    setSaving(false);
+  };
+
+  const Field = ({ label, children }) => (
+    <div className="col gap-2">
+      <label style={{ fontSize: 11, color: 'var(--ink-3)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>{label}</label>
+      {children}
+    </div>
+  );
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.62)',
+        backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '24px 16px',
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <GlassCard style={{ width: '100%', maxWidth: 460, padding: 28 }}>
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 24 }}>
+          <div className="t-display" style={{ fontSize: 18 }}>編輯飼養缸</div>
+          <button className="iconbtn" onClick={onClose}><Icon name="x" size={16} /></button>
+        </div>
+
+        <div className="col gap-4">
+          <Field label="封面圖片">
+            <div className="row gap-3" style={{ alignItems: 'flex-start' }}>
+              {imagePreview ? (
+                <div style={{ position: 'relative', width: 80, height: 80, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid var(--glass-border)' }}>
+                  <img src={imagePreview} alt="預覽" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button
+                    onClick={handleRemoveImage}
+                    style={{
+                      position: 'absolute', top: 4, right: 4,
+                      width: 20, height: 20, borderRadius: '50%',
+                      background: 'color-mix(in oklch, var(--crimson) 80%, black)',
+                      border: 'none', cursor: 'pointer', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                      color: '#fff',
+                    }}
+                  >
+                    <Icon name="x" size={10} />
+                  </button>
+                </div>
+              ) : (
+                <div style={{
+                  width: 80, height: 80, borderRadius: 12, flexShrink: 0,
+                  border: '1px dashed var(--glass-border)',
+                  background: 'rgba(255,255,255,0.03)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--ink-4)',
+                }}>
+                  <Icon name="image" size={22} />
+                </div>
+              )}
+              <div className="col gap-2">
+                <input type="file" accept="image/*" id="tank-img-upload" onChange={handleImageUpload} style={{ display: 'none' }} />
+                <label htmlFor="tank-img-upload" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 8, cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)',
+                  color: 'var(--ink-2)', fontSize: 13,
+                }}>
+                  <Icon name="upload" size={13} />
+                  選擇圖片
+                </label>
+                <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>JPG / PNG，最大 5 MB</span>
               </div>
-              <Toggle on={ch.on} />
             </div>
-          ))}
+          </Field>
+          <Field label="名稱">
+            <input value={form.name} onChange={set('name')} style={INP} placeholder="飼養缸名稱" />
+          </Field>
+          <Field label="描述（選填）">
+            <input value={form.description || ''} onChange={set('description')} style={INP} placeholder="例如：肥尾守宮的家" />
+          </Field>
+          <Field label="目標溫度範圍（°C）">
+            <div className="row gap-2">
+              <input type="number" step="0.5" min="15" max="40" value={form.target_temp_min} onChange={set('target_temp_min')} style={NUM_INP} />
+              <span style={{ color: 'var(--ink-3)' }}>–</span>
+              <input type="number" step="0.5" min="15" max="45" value={form.target_temp_max} onChange={set('target_temp_max')} style={NUM_INP} />
+              <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>°C</span>
+            </div>
+          </Field>
+          <Field label="目標濕度範圍（%）">
+            <div className="row gap-2">
+              <input type="number" step="1" min="0" max="100" value={form.target_humidity_min} onChange={set('target_humidity_min')} style={NUM_INP} />
+              <span style={{ color: 'var(--ink-3)' }}>–</span>
+              <input type="number" step="1" min="0" max="100" value={form.target_humidity_max} onChange={set('target_humidity_max')} style={NUM_INP} />
+              <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>%</span>
+            </div>
+          </Field>
+        </div>
+
+        {error && (
+          <div style={{
+            marginTop: 16, padding: '10px 14px', borderRadius: 10,
+            background: 'color-mix(in oklch, var(--crimson) 12%, transparent)',
+            color: 'var(--crimson)', fontSize: 13,
+          }}>{error}</div>
+        )}
+
+        <div className="row gap-3" style={{ justifyContent: 'flex-end', marginTop: 24 }}>
+          <button onClick={onClose} style={{
+            padding: '9px 20px', borderRadius: 999, cursor: 'pointer',
+            background: 'rgba(255,255,255,0.05)', border: '1px solid var(--glass-border)',
+            color: 'var(--ink-2)', fontSize: 14,
+          }}>取消</button>
+          <button onClick={handleSave} disabled={saving} style={{
+            padding: '9px 20px', borderRadius: 999, cursor: 'pointer',
+            background: 'color-mix(in oklch, var(--amber) 20%, transparent)',
+            border: '1px solid color-mix(in oklch, var(--amber) 40%, transparent)',
+            color: 'var(--amber)', fontSize: 14, opacity: saving ? 0.6 : 1,
+          }}>{saving ? '儲存中…' : '儲存'}</button>
         </div>
       </GlassCard>
     </div>
@@ -261,6 +452,8 @@ export default function TankDetail() {
   const [history, setHistory] = useState([]);
   const [tab, setTab] = useState('control');
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [feedToast, setFeedToast] = useState(false);
 
   const loadLatest = useCallback(async () => {
     try {
@@ -324,8 +517,8 @@ export default function TankDetail() {
 
   const tLo = tank.target_temp_min ?? 24;
   const tHi = tank.target_temp_max ?? 32;
-  const hLo = tank.target_hum_min ?? 40;
-  const hHi = tank.target_hum_max ?? 70;
+  const hLo = tank.target_humidity_min ?? 40;
+  const hHi = tank.target_humidity_max ?? 70;
   const ts = tempStatus(temp, tLo, tHi);
   const hs = humStatus(hum, hLo, hHi);
   const health = healthOf(temp, hum, tLo, tHi, hLo, hHi);
@@ -338,24 +531,64 @@ export default function TankDetail() {
   return (
     <div className="col gap-5">
       {/* Hero */}
-      <GlassCard style={{ padding: 28, display: 'flex', gap: 28, alignItems: 'center' }}>
-        <Avatar initial={tankInitial(tank.name)} tone={tone} size={88} />
-        <div className="col" style={{ flex: 1, gap: 8 }}>
-          <div className="row gap-3">
-            <div className="t-display" style={{ fontSize: 26 }}>{tank.name}</div>
-            <Pill tone={health.tone}><Dot tone={health.tone} />{health.label}</Pill>
+      <GlassCard style={{ padding: isMobile ? 18 : 28 }}>
+        {isMobile ? (
+          <div className="col" style={{ gap: 12 }}>
+            {/* 第一列：Avatar + 按鈕 */}
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Avatar initial={tankInitial(tank.name)} tone={tone} size={56} src={tank.image_url || undefined} />
+              <div className="row gap-2">
+                <button className="iconbtn" title="編輯飼養缸設定" onClick={() => setEditOpen(true)}>
+                  <Icon name="settings" size={16} />
+                </button>
+                <button className="iconbtn" title="餵食紀錄" onClick={() => {
+                  setFeedToast(true);
+                  setTimeout(() => setFeedToast(false), 2800);
+                }}>
+                  <Icon name="feed" size={16} />
+                </button>
+              </div>
+            </div>
+            {/* 第二列：名稱 + 狀態 */}
+            <div className="row gap-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+              <div className="t-display" style={{ fontSize: 22 }}>{tank.name}</div>
+              <Pill tone={health.tone}><Dot tone={health.tone} />{health.label}</Pill>
+            </div>
+            {tank.description && (
+              <div style={{ color: 'var(--ink-2)', fontSize: 13 }}>{tank.description}</div>
+            )}
+            <div className="t-mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>
+              目標 {tLo}–{tHi}°C · 濕度 {hLo}–{hHi}%
+            </div>
           </div>
-          {tank.description && (
-            <div style={{ color: 'var(--ink-2)', fontSize: 14 }}>{tank.description}</div>
-          )}
-          <div className="t-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-            目標 {tLo}–{tHi}°C · 濕度 {hLo}–{hHi}%
+        ) : (
+          <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
+            <Avatar initial={tankInitial(tank.name)} tone={tone} size={88} src={tank.image_url || undefined} />
+            <div className="col" style={{ flex: 1, gap: 8 }}>
+              <div className="row gap-3">
+                <div className="t-display" style={{ fontSize: 26 }}>{tank.name}</div>
+                <Pill tone={health.tone}><Dot tone={health.tone} />{health.label}</Pill>
+              </div>
+              {tank.description && (
+                <div style={{ color: 'var(--ink-2)', fontSize: 14 }}>{tank.description}</div>
+              )}
+              <div className="t-mono" style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                目標 {tLo}–{tHi}°C · 濕度 {hLo}–{hHi}%
+              </div>
+            </div>
+            <div className="row gap-2">
+              <button className="iconbtn" title="編輯飼養缸設定" onClick={() => setEditOpen(true)}>
+                <Icon name="settings" size={16} />
+              </button>
+              <button className="iconbtn" title="餵食紀錄" onClick={() => {
+                setFeedToast(true);
+                setTimeout(() => setFeedToast(false), 2800);
+              }}>
+                <Icon name="feed" size={16} />
+              </button>
+            </div>
           </div>
-        </div>
-        <div className="row gap-2">
-          <button className="iconbtn" title="設定"><Icon name="settings" size={16} /></button>
-          <button className="iconbtn" title="餵食紀錄"><Icon name="feed" size={16} /></button>
-        </div>
+        )}
       </GlassCard>
 
       {/* Gauges + Chart */}
@@ -420,6 +653,27 @@ export default function TankDetail() {
       {tab === 'control' && <ControlPanel relays={relays} onToggle={handleToggle} />}
       {tab === 'schedule' && <SchedulePanel schedules={tankSchedules} relays={relays} />}
       {tab === 'alerts' && <AlertsPanel tank={tank} />}
+
+      {editOpen && (
+        <EditTankModal
+          tank={tank}
+          onClose={() => setEditOpen(false)}
+          onSave={(updated) => setTank(updated)}
+        />
+      )}
+
+      {feedToast && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 300, whiteSpace: 'nowrap',
+          background: 'var(--bg-1)', border: '1px solid var(--glass-border)',
+          borderRadius: 14, padding: '12px 20px',
+          fontSize: 13, color: 'var(--ink-2)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.45)',
+        }}>
+          餵食紀錄功能即將推出
+        </div>
+      )}
     </div>
   );
 }

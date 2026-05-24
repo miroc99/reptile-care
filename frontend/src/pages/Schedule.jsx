@@ -18,35 +18,39 @@ function deviceTone(type) {
 
 const HOURS = [0, 4, 8, 12, 16, 20, 24];
 
-// ── 新增排程 Modal ──────────────────────────────────────────
+// ── 新增 / 編輯排程 Modal ────────────────────────────────────
 const SCHED_TYPES = [
   { value: 'daily',       label: '每日固定時段' },
   { value: 'weekly',      label: '每週指定天' },
   { value: 'cron',        label: 'Cron 表達式' },
   { value: 'temperature', label: '溫度控制' },
 ];
-// 後端用 Python weekday(): 0=週一, 6=週日，需與此順序對齊
+// 後端用 Python weekday(): 0=週一, 6=週日
 const DOW_LABELS = ['一', '二', '三', '四', '五', '六', '日'];
 
-function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
-  const [form, setForm] = useState({
-    name: '',
-    relay_channel_id: relays[0]?.id ?? '',
-    schedule_type: 'daily',
-    start_time: '08:00',
-    end_time: '20:00',
-    days_of_week: '',
-    cron_expression: '',
-    temp_low: '',
-    temp_high: '',
-    priority: 0,
-  });
-  const [dow, setDow] = useState([]);
+function ScheduleModal({ relays, tanks, schedule, onClose, onDone }) {
+  const isEdit = !!schedule;
+  const [form, setForm] = useState(() => ({
+    name:             schedule?.name             ?? '',
+    relay_channel_id: schedule?.relay_channel_id ?? (relays[0]?.id ?? ''),
+    schedule_type:    schedule?.schedule_type    ?? 'daily',
+    start_time:       schedule?.start_time       ?? '08:00',
+    end_time:         schedule?.end_time         ?? '20:00',
+    days_of_week:     schedule?.days_of_week     ?? '',
+    cron_expression:  schedule?.cron_expression  ?? '',
+    temp_low:         schedule?.temp_low         ?? '',
+    temp_high:        schedule?.temp_high        ?? '',
+    priority:         schedule?.priority         ?? 0,
+  }));
+  const [dow, setDow] = useState(() =>
+    schedule?.days_of_week
+      ? schedule.days_of_week.split(',').map(Number).filter(n => !isNaN(n))
+      : []
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
-
   function toggleDow(d) {
     setDow(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d].sort());
   }
@@ -62,7 +66,6 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
       schedule_type: form.schedule_type,
       priority: Number(form.priority) || 0,
     };
-
     if (form.schedule_type === 'daily' || form.schedule_type === 'weekly') {
       body.start_time = form.start_time;
       body.end_time   = form.end_time;
@@ -82,8 +85,10 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch('/api/schedules', {
-        method: 'POST',
+      const url    = isEdit ? `/api/schedules/${schedule.id}` : '/api/schedules';
+      const method = isEdit ? 'PATCH' : 'POST';
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -91,8 +96,7 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
         const detail = await res.json().catch(() => ({}));
         throw new Error(detail.detail || `HTTP ${res.status}`);
       }
-      const created = await res.json();
-      onCreated(created);
+      onDone(await res.json());
       onClose();
     } catch (err) {
       setError(err.message);
@@ -101,57 +105,51 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
     }
   }
 
-  const inputStyle = {
+  const inp = {
     width: '100%', boxSizing: 'border-box',
     background: 'rgba(255,255,255,0.06)',
     border: '1px solid var(--glass-border)',
     borderRadius: 8, color: 'var(--ink-1)',
-    padding: '8px 12px', fontSize: 13,
-    outline: 'none',
+    padding: '8px 12px', fontSize: 13, outline: 'none',
   };
-  const labelStyle = { fontSize: 11, color: 'var(--ink-3)', marginBottom: 5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' };
+  const lbl = { fontSize: 11, color: 'var(--ink-3)', marginBottom: 5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.08em' };
 
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 999,
       background: 'rgba(10,8,6,0.72)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '24px 16px',
     }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 480, maxHeight: '88vh', overflowY: 'auto' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, maxHeight: '88vh', overflowY: 'auto' }}>
         <GlassCard style={{ padding: 28 }}>
           <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
-            <div className="t-display" style={{ fontSize: 18 }}>新增排程</div>
+            <div className="t-display" style={{ fontSize: 18 }}>{isEdit ? '編輯排程' : '新增排程'}</div>
             <button className="iconbtn" onClick={onClose} style={{ width: 30, height: 30, color: 'var(--ink-3)' }}>
               <Icon name="x" size={14} />
             </button>
           </div>
 
           <form onSubmit={handleSubmit} className="col" style={{ gap: 18 }}>
-            {/* 排程名稱 */}
             <div>
-              <label style={labelStyle}>排程名稱 *</label>
-              <input style={inputStyle} value={form.name} onChange={e => set('name', e.target.value)} placeholder="例：日間加熱燈" />
+              <label style={lbl}>排程名稱 *</label>
+              <input style={inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="例：日間加熱燈" />
             </div>
-
-            {/* 繼電器通道 */}
             <div>
-              <label style={labelStyle}>繼電器通道 *</label>
-              <select style={inputStyle} value={form.relay_channel_id} onChange={e => set('relay_channel_id', e.target.value)}>
+              <label style={lbl}>繼電器通道 *</label>
+              <select style={inp} value={form.relay_channel_id} onChange={e => set('relay_channel_id', e.target.value)}>
                 {relays.map(r => {
                   const tank = tanks.find(t => t.id === r.tank_id);
                   return (
                     <option key={r.id} value={r.id}>
-                      CH{r.channel} – {r.name || `通道 ${r.channel}`}
-                      {tank ? ` (${tank.name})` : ''}
+                      CH{r.channel} – {r.name || `通道 ${r.channel}`}{tank ? ` (${tank.name})` : ''}
                     </option>
                   );
                 })}
               </select>
             </div>
-
-            {/* 排程類型 */}
             <div>
-              <label style={labelStyle}>排程類型</label>
+              <label style={lbl}>排程類型</label>
               <div className="row gap-2" style={{ flexWrap: 'wrap' }}>
                 {SCHED_TYPES.map(t => (
                   <div key={t.value} onClick={() => set('schedule_type', t.value)} style={{
@@ -164,24 +162,22 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
               </div>
             </div>
 
-            {/* 每日 / 每週：時間 */}
             {(form.schedule_type === 'daily' || form.schedule_type === 'weekly') && (
               <div className="row gap-4">
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>開始時間</label>
-                  <input type="time" style={inputStyle} value={form.start_time} onChange={e => set('start_time', e.target.value)} />
+                  <label style={lbl}>開始時間</label>
+                  <input type="time" style={inp} value={form.start_time} onChange={e => set('start_time', e.target.value)} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>結束時間</label>
-                  <input type="time" style={inputStyle} value={form.end_time} onChange={e => set('end_time', e.target.value)} />
+                  <label style={lbl}>結束時間</label>
+                  <input type="time" style={inp} value={form.end_time} onChange={e => set('end_time', e.target.value)} />
                 </div>
               </div>
             )}
 
-            {/* 每週：星期選擇 */}
             {form.schedule_type === 'weekly' && (
               <div>
-                <label style={labelStyle}>執行星期（空選 = 每天）</label>
+                <label style={lbl}>執行星期（空選 = 每天）</label>
                 <div className="row gap-2">
                   {DOW_LABELS.map((d, i) => (
                     <div key={i} onClick={() => toggleDow(i)} style={{
@@ -198,45 +194,40 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
               </div>
             )}
 
-            {/* Cron */}
             {form.schedule_type === 'cron' && (
               <div>
-                <label style={labelStyle}>Cron 表達式</label>
-                <input style={inputStyle} value={form.cron_expression} onChange={e => set('cron_expression', e.target.value)} placeholder="0 8 * * *" />
+                <label style={lbl}>Cron 表達式</label>
+                <input style={inp} value={form.cron_expression} onChange={e => set('cron_expression', e.target.value)} placeholder="0 8 * * *" />
                 <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
                   格式：分 時 日 月 星期（例：0 8 * * 1-5 = 週一至週五早上 8 點）
                 </div>
               </div>
             )}
 
-            {/* 溫度控制 */}
             {form.schedule_type === 'temperature' && (
               <div className="row gap-4">
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>觸發低溫 (°C)</label>
-                  <input type="number" step="0.1" style={inputStyle} value={form.temp_low} onChange={e => set('temp_low', e.target.value)} placeholder="例：22.0" />
+                  <label style={lbl}>觸發低溫 (°C)</label>
+                  <input type="number" step="0.1" style={inp} value={form.temp_low} onChange={e => set('temp_low', e.target.value)} placeholder="例：22.0" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={labelStyle}>觸發高溫 (°C)</label>
-                  <input type="number" step="0.1" style={inputStyle} value={form.temp_high} onChange={e => set('temp_high', e.target.value)} placeholder="例：30.0" />
+                  <label style={lbl}>觸發高溫 (°C)</label>
+                  <input type="number" step="0.1" style={inp} value={form.temp_high} onChange={e => set('temp_high', e.target.value)} placeholder="例：30.0" />
                 </div>
               </div>
             )}
 
-            {/* 優先級 */}
             <div>
-              <label style={labelStyle}>優先級（數字越大越優先）</label>
-              <input type="number" min="0" style={{ ...inputStyle, width: 100 }} value={form.priority} onChange={e => set('priority', e.target.value)} />
+              <label style={lbl}>優先級（數字越大越優先）</label>
+              <input type="number" min="0" style={{ ...inp, width: 100 }} value={form.priority} onChange={e => set('priority', e.target.value)} />
             </div>
 
-            {/* 錯誤訊息 */}
             {error && (
               <div style={{ fontSize: 12, color: 'var(--crimson)', background: 'rgba(255,60,60,0.08)', borderRadius: 8, padding: '8px 12px' }}>
                 {error}
               </div>
             )}
 
-            {/* 按鈕列 */}
             <div className="row gap-3" style={{ justifyContent: 'flex-end', marginTop: 4 }}>
               <button type="button" className="iconbtn" onClick={onClose}
                 style={{ width: 'auto', padding: '0 16px', height: 36, color: 'var(--ink-3)', fontSize: 13 }}>
@@ -244,14 +235,160 @@ function CreateScheduleModal({ relays, tanks, onClose, onCreated }) {
               </button>
               <button type="submit" disabled={saving} className="iconbtn"
                 style={{ width: 'auto', padding: '0 20px', height: 36, gap: 6, background: 'color-mix(in oklch, var(--amber) 18%, transparent)', color: 'var(--amber)', fontSize: 13, border: '1px solid var(--amber)', opacity: saving ? 0.6 : 1 }}>
-                <Icon name="plus" size={13} />
-                {saving ? '建立中…' : '建立排程'}
+                <Icon name={isEdit ? 'check' : 'plus'} size={13} />
+                {saving ? (isEdit ? '儲存中…' : '建立中…') : (isEdit ? '儲存變更' : '建立排程')}
               </button>
             </div>
           </form>
         </GlassCard>
       </div>
     </div>
+  );
+}
+
+// ── 排程管理列表 ────────────────────────────────────────────
+const TYPE_LABEL = { daily: '每日', weekly: '每週', cron: 'Cron', temperature: '溫控' };
+const TYPE_TONE  = { daily: 'amber', weekly: 'violet', cron: 'sky', temperature: 'crimson' };
+
+function ScheduleListCard({ schedules, relays, tanks, onEdit, onDelete, onToggle }) {
+  const [confirmId, setConfirmId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
+
+  async function handleToggle(s) {
+    setTogglingId(s.id);
+    await onToggle(s);
+    setTogglingId(null);
+  }
+
+  if (!schedules.length) {
+    return (
+      <GlassCard style={{ padding: 28, textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
+        尚未建立任何排程
+      </GlassCard>
+    );
+  }
+
+  return (
+    <GlassCard style={{ padding: 22 }}>
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+        <div className="t-label">所有排程</div>
+        <div className="t-mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+          {schedules.filter(s => s.active).length} / {schedules.length} 已啟用
+        </div>
+      </div>
+      <div className="col" style={{ gap: 4 }}>
+        {schedules.map(s => {
+          const relay = relays.find(r => r.id === s.relay_channel_id);
+          const tank  = tanks.find(t => t.id === relay?.tank_id);
+          const tone  = TYPE_TONE[s.schedule_type] || 'amber';
+          const isConfirming = confirmId === s.id;
+          const isToggling   = togglingId === s.id;
+
+          if (isConfirming) {
+            return (
+              <div key={s.id} className="row gap-3" style={{
+                padding: '12px 14px', borderRadius: 12,
+                background: 'color-mix(in oklch, var(--crimson) 8%, transparent)',
+                border: '1px solid color-mix(in oklch, var(--crimson) 25%, transparent)',
+              }}>
+                <div style={{ flex: 1, fontSize: 13, color: 'var(--crimson)' }}>
+                  確定刪除「{s.name}」？此操作無法復原。
+                </div>
+                <button onClick={() => { onDelete(s.id); setConfirmId(null); }} style={{
+                  padding: '5px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
+                  background: 'color-mix(in oklch, var(--crimson) 20%, transparent)',
+                  border: '1px solid color-mix(in oklch, var(--crimson) 40%, transparent)',
+                  color: 'var(--crimson)',
+                }}>確定刪除</button>
+                <button onClick={() => setConfirmId(null)} style={{
+                  padding: '5px 14px', borderRadius: 999, cursor: 'pointer', fontSize: 12,
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid var(--glass-border)',
+                  color: 'var(--ink-3)',
+                }}>取消</button>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={s.id}
+              className="row gap-3"
+              style={{
+                padding: '10px 14px', borderRadius: 12, transition: 'background 160ms',
+                background: 'rgba(255,255,255,0.02)',
+                opacity: s.active ? 1 : 0.5,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+            >
+              {/* 啟用狀態 dot（點擊切換） */}
+              <button
+                title={s.active ? '點擊停用' : '點擊啟用'}
+                onClick={() => handleToggle(s)}
+                disabled={isToggling}
+                style={{
+                  width: 10, height: 10, borderRadius: 999, flexShrink: 0,
+                  background: s.active ? 'var(--sage)' : 'var(--ink-4)',
+                  boxShadow: s.active ? '0 0 6px var(--sage)' : 'none',
+                  border: 'none', cursor: 'pointer',
+                  transition: 'all 200ms', padding: 0,
+                  opacity: isToggling ? 0.5 : 1,
+                  alignSelf: 'center',
+                }}
+              />
+
+              {/* 名稱 + 資訊 */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: 'var(--ink-1)', marginBottom: 3 }}>{s.name}</div>
+                <div className="row gap-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span className={`pill ${tone}`} style={{ fontSize: 9, padding: '2px 7px' }}>
+                    {TYPE_LABEL[s.schedule_type] || s.schedule_type}
+                  </span>
+                  {relay && (
+                    <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>
+                      CH{relay.channel} · {relay.name || relay.device_type || '設備'}
+                    </span>
+                  )}
+                  {tank && (
+                    <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>
+                      {tank.name}
+                    </span>
+                  )}
+                  {s.start_time && (
+                    <span className="t-mono" style={{ fontSize: 10, color: 'var(--ink-3)' }}>
+                      {s.start_time.slice(0, 5)}{s.end_time ? `–${s.end_time.slice(0, 5)}` : ''}
+                    </span>
+                  )}
+                  {s.cron_expression && (
+                    <span className="t-mono" style={{ fontSize: 10, color: 'var(--sky)' }}>
+                      {s.cron_expression}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* 操作按鈕 */}
+              <div className="row gap-1" style={{ flexShrink: 0 }}>
+                <button
+                  className="iconbtn" title="編輯排程"
+                  style={{ width: 30, height: 30 }}
+                  onClick={() => onEdit(s)}
+                >
+                  <Icon name="pencil" size={13} />
+                </button>
+                <button
+                  className="iconbtn" title="刪除排程"
+                  style={{ width: 30, height: 30, color: 'var(--crimson)' }}
+                  onClick={() => setConfirmId(s.id)}
+                >
+                  <Icon name="trash" size={13} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </GlassCard>
   );
 }
 
@@ -474,8 +611,9 @@ export default function Schedule() {
   const [schedules, setSchedules] = useState([]);
   const [view, setView]           = useState('today');
   const [filterTank, setFilterTank] = useState('all');
-  const [loading, setLoading]     = useState(true);
-  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading]       = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -494,6 +632,25 @@ export default function Schedule() {
     setSchedules(prev => [...prev, newSched]);
   }
 
+  function handleUpdated(updated) {
+    setSchedules(prev => prev.map(s => s.id === updated.id ? updated : s));
+  }
+
+  async function handleDeleted(id) {
+    try {
+      await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+      setSchedules(prev => prev.filter(s => s.id !== id));
+    } catch {}
+  }
+
+  async function handleToggleActive(s) {
+    const endpoint = s.active ? 'disable' : 'enable';
+    try {
+      await fetch(`/api/schedules/${s.id}/${endpoint}`, { method: 'POST' });
+      setSchedules(prev => prev.map(x => x.id === s.id ? { ...x, active: !s.active } : x));
+    } catch {}
+  }
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' });
 
@@ -507,12 +664,23 @@ export default function Schedule() {
   return (
     <div className="col gap-5">
       {/* 新增排程 Modal */}
-      {showModal && (
-        <CreateScheduleModal
+      {showCreate && (
+        <ScheduleModal
           relays={relays}
           tanks={tanks}
-          onClose={() => setShowModal(false)}
-          onCreated={handleCreated}
+          onClose={() => setShowCreate(false)}
+          onDone={handleCreated}
+        />
+      )}
+
+      {/* 編輯排程 Modal */}
+      {editTarget && (
+        <ScheduleModal
+          relays={relays}
+          tanks={tanks}
+          schedule={editTarget}
+          onClose={() => setEditTarget(null)}
+          onDone={(updated) => { handleUpdated(updated); setEditTarget(null); }}
         />
       )}
 
@@ -530,7 +698,7 @@ export default function Schedule() {
           <button
             className="iconbtn"
             style={{ width: 'auto', padding: '0 14px', gap: 6, color: 'var(--amber)' }}
-            onClick={() => setShowModal(true)}
+            onClick={() => setShowCreate(true)}
             title="新增排程"
           >
             <Icon name="plus" size={14} />
@@ -617,6 +785,22 @@ export default function Schedule() {
           </div>
         </GlassCard>
       </div>
+
+      {/* 排程管理列表：全部排程（含停用），依 filter 篩飼養缸 */}
+      <ScheduleListCard
+        schedules={filterTank === 'all'
+          ? schedules
+          : schedules.filter(s => {
+              const r = relays.find(r => r.id === s.relay_channel_id);
+              return r && String(r.tank_id) === filterTank;
+            })
+        }
+        relays={relays}
+        tanks={tanks}
+        onEdit={setEditTarget}
+        onDelete={handleDeleted}
+        onToggle={handleToggleActive}
+      />
     </div>
   );
 }

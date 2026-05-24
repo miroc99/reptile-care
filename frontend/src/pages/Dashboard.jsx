@@ -57,8 +57,8 @@ function TankTile({ tank, relays, index, onClick }) {
   const hum = tank.humidity;
   const lo = tank.target_temp_min ?? 24;
   const hi = tank.target_temp_max ?? 32;
-  const hLo = tank.target_hum_min ?? 40;
-  const hHi = tank.target_hum_max ?? 70;
+  const hLo = tank.target_humidity_min ?? 40;
+  const hHi = tank.target_humidity_max ?? 70;
   const ts = tempStatus(temp, lo, hi);
   const hs = humStatus(hum, hLo, hHi);
   const health = tankHealth(temp, hum, lo, hi, hLo, hHi);
@@ -75,7 +75,7 @@ function TankTile({ tank, relays, index, onClick }) {
       {/* Header */}
       <div className="row gap-3" style={{ justifyContent: 'space-between' }}>
         <div className="row gap-3">
-          <Avatar initial={tankInitial(tank.name)} tone={tone} size={44} />
+          <Avatar initial={tankInitial(tank.name)} tone={tone} size={44} src={tank.image_url || undefined} />
           <div>
             <div className="t-display" style={{ fontSize: 15, color: 'var(--ink-1)' }}>{tank.name}</div>
             {tank.description && (
