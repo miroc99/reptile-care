@@ -500,7 +500,7 @@ export default function TankDetail() {
       await fetch(`/api/relays/${relayId}/control`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: newState ? 'on' : 'off' }),
+        body: JSON.stringify({ state: newState }),
       });
     } catch {
       await loadRelays();
